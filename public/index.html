@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markview</title>
+    
+    <link rel="stylesheet" href="https://example.com/styles/fonts.css?h=3af6266dda8f5a65f31a">
+    <link rel="stylesheet" href="https://example.com/styles/main.css?h=bc430c3a41c7ca0ff1f8">
+    <link rel="stylesheet" href="https://example.com/css/markview.css?h=1e615f70cfcecb437f68">
+    
+    <!-- Marked.js for parsing Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- DOMPurify for sanitizing HTML -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+
+    <script>
+        (function () {
+            const stored = localStorage.getItem('theme');
+            let theme;
+            if (stored === 'light' || stored === 'dark') {
+                theme = stored;
+            } else {
+                try {
+                    const mq = window.matchMedia('(prefers-color-scheme: light)');
+                    theme = mq.matches ? 'light' : 'dark';
+                } catch (e) {
+                    theme = 'dark';
+                }
+            }
+            document.documentElement.setAttribute('data-theme', theme);
+            document.documentElement.style.colorScheme = theme;
+            if (stored !== theme) {
+                localStorage.setItem('theme', theme);
+            }
+        })();
+    </script>
+    <script src="https://example.com/js/feather.min.js?h=ea465ac6b69a037dc49f" defer></script>
+    <script src="https://example.com/js/lucide.min.js?h=5ec87d19ae8868ca65bc" defer></script>
+</head>
+<body>
+    <header>
+        <a href="https://example.com" class="title" aria-label="Go to homepage">
+            <span class="name">Markview</span>
+        </a>
+        <nav>
+            <button class="theme-toggle" title="Toggle Dark Mode" aria-label="Switch to dark mode">
+                <i data-feather="moon"></i>
+            </button>
+        </nav>
+    </header>
+
+    <main class="markview-main">
+        <div id="upload-container" class="upload-container">
+            <div class="upload-box">
+                <i data-feather="upload-cloud" class="upload-icon"></i>
+                <h2>Upload Markdown File</h2>
+                <p>Select a markdown file to view it beautifully.</p>
+                <input type="file" id="markdown-upload" accept=".md,.markdown,text/markdown" />
+                <label for="markdown-upload" class="upload-btn">Choose File</label>
+            </div>
+        </div>
+
+        <div id="viewer-container" class="viewer-container hidden">
+            <aside id="toc-sidebar" class="toc-sidebar">
+                <div class="toc-header">
+                    <h3>Table of Contents</h3>
+                    <button id="toggle-sidebar" class="toggle-btn" aria-label="Toggle Sidebar">
+                        <i data-feather="chevron-left"></i>
+                    </button>
+                </div>
+                <nav id="toc-nav" class="toc-nav"></nav>
+            </aside>
+            <button id="expand-sidebar" class="expand-btn hidden" aria-label="Expand Sidebar">
+                <i data-feather="menu"></i>
+            </button>
+            <article id="markdown-content" class="markdown-content"></article>
+        </div>
+    </main>
+
+    <script src="https://example.com/js/main.js?h=eae4fb8d3ac153c974c9"></script>
+    <script src="https://example.com/js/markview.js?h=01f3ade0ea0330421d26"></script>
+</body>
+</html>

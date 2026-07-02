@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ config.title }}</title>
+    
+    <link rel="stylesheet" href="{{ get_url(path="styles/fonts.css", trailing_slash=false, cachebust=true) | safe }}">
+    <link rel="stylesheet" href="{{ get_url(path="styles/main.css", trailing_slash=false, cachebust=true) | safe }}">
+    <link rel="stylesheet" href="{{ get_url(path="css/markview.css", trailing_slash=false, cachebust=true) | safe }}">
+    
+    <!-- Marked.js for parsing Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- DOMPurify for sanitizing HTML -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    
+    <!-- Highlight.js for syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/base16/dracula.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/toml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+
+    <script>
+        (function () {
+            let stored = localStorage.getItem('theme');
+            if (stored !== 'light' && stored !== 'dark') {
+                stored = 'dark';
+                localStorage.setItem('theme', stored);
+            }
+            document.documentElement.setAttribute('data-theme', stored);
+            document.documentElement.style.colorScheme = stored;
+        })();
+    </script>
+    <script src="{{ get_url(path='js/feather.min.js', trailing_slash=false, cachebust=true) | safe }}" defer></script>
+    <script src="{{ get_url(path='js/lucide.min.js', trailing_slash=false, cachebust=true) | safe }}" defer></script>
+</head>
+<body>
+    <header class="markview-header">
+        <div class="header-inner" style="position: relative;">
+            <a href="{{ config.base_url | safe }}" class="title" aria-label="Go to homepage">
+                <span class="name">{{ config.title }}</span>
+            </a>
+            
+            <div class="header-center hidden" id="header-upload-container">
+                <input type="file" id="header-markdown-upload" accept=".md,.markdown,text/markdown" class="hidden" />
+                <label for="header-markdown-upload" class="header-action-btn">
+                    <i data-feather="upload"></i>
+                    <span>Upload New File</span>
+                </label>
+                <button class="header-action-btn" id="export-pdf-btn">
+                    <i data-feather="download"></i>
+                    <span>Export PDF</span>
+                </button>
+            </div>
+            
+            <nav>
+                <button class="theme-toggle" title="Toggle Dark Mode" aria-label="Switch to dark mode">
+                    <i data-feather="moon"></i>
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="markview-main">
+        <div id="upload-container" class="upload-container">
+            <div class="upload-box">
+                <i data-feather="upload-cloud" class="upload-icon"></i>
+                <h2>Upload Markdown File</h2>
+                <p>Select a markdown file to view it beautifully.</p>
+                <input type="file" id="markdown-upload" accept=".md,.markdown,text/markdown" />
+                <label for="markdown-upload" class="upload-btn">Choose File</label>
+            </div>
+        </div>
+
+        <div id="viewer-container" class="viewer-container hidden">
+            <aside id="toc-sidebar" class="toc-sidebar">
+                <div class="toc-header">
+                    <h3>Table of Contents</h3>
+                    <button id="toggle-sidebar" class="toggle-btn" aria-label="Toggle Sidebar">
+                        <i data-feather="chevron-left"></i>
+                    </button>
+                </div>
+                <nav id="toc-nav" class="toc-nav"></nav>
+            </aside>
+            <button id="expand-sidebar" class="expand-btn hidden" aria-label="Expand Sidebar">
+                <i data-feather="menu"></i>
+            </button>
+            <div class="markdown-content" id="markdown-content"></div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="footer-inner">
+            <div class="footer-left">
+               Copyright ©  {{ now() | date(format="%Y") }} All rights reserved.
+            </div>
+            <div class="footer-center">
+                Crafted with ❤️ by {{ config.author }}
+            </div>
+            <div class="footer-right">
+                <div class="social-links">
+                    {% if config.extra.github %}
+                    <a href="{{ config.extra.github }}" target="_blank" rel="noopener noreferrer me" title="GitHub" class="social-icon" aria-label="GitHub">
+                        <i data-feather="github"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <button id="back-to-top" class="back-to-top" title="Back to top" aria-label="Back to top">
+        <i data-feather="arrow-up"></i>
+    </button>
+
+    <script src="{{ get_url(path='js/main.js', cachebust=true) | safe }}"></script>
+    <script src="{{ get_url(path='js/markview.js', cachebust=true) | safe }}"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+base_url = "https://markview.pankajkumar.xyz"
+title = "Markview"
+author = "Pankaj Kumar"
+compile_sass = false
+build_search_index = false
+
+
+[extra]
+favicon = "favicon.svg"
+github = "https://github.com/ipankajkumar93/markview"
