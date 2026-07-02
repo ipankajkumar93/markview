@@ -115,11 +115,6 @@ document.addEventListener('DOMContentLoaded', () => {
             node.remove();
         }
         
-        // Re-initialize feather icons if any were in the text (optional)
-        if (typeof feather !== 'undefined') {
-            feather.replace();
-        }
-
         // Apply syntax highlighting to code blocks
         if (typeof hljs !== 'undefined') {
             markdownContent.querySelectorAll('pre code').forEach((block) => {
@@ -129,6 +124,64 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error("Syntax highlighting error:", err);
                 }
             });
+        }
+
+        // Add Copy Code Buttons
+        markdownContent.querySelectorAll('pre').forEach(block => {
+            if (block.querySelector('.copy-code-btn') || !block.querySelector('code')) return;
+
+            const button = document.createElement('button');
+            button.className = 'copy-code-btn';
+            button.setAttribute('aria-label', 'Copy code');
+            button.setAttribute('title', 'Copy to clipboard');
+            button.innerHTML = '<i data-feather="copy"></i>';
+
+            button.addEventListener('click', () => {
+                const code = block.querySelector('code');
+                if (!code) return;
+
+                const textToCopy = code.textContent.trimEnd();
+
+                const showSuccess = () => {
+                    button.innerHTML = '<i data-feather="check"></i>';
+                    button.classList.add('copied');
+                    if (typeof feather !== 'undefined') feather.replace();
+
+                    setTimeout(() => {
+                        button.innerHTML = '<i data-feather="copy"></i>';
+                        button.classList.remove('copied');
+                        if (typeof feather !== 'undefined') feather.replace();
+                    }, 2000);
+                };
+
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(textToCopy).then(showSuccess).catch(err => {
+                        console.error('Failed to copy text: ', err);
+                    });
+                } else {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = textToCopy;
+                    textArea.style.position = "fixed";
+                    textArea.style.opacity = "0";
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        showSuccess();
+                    } catch (err) {
+                        console.error('Fallback copy failed', err);
+                    }
+                    document.body.removeChild(textArea);
+                }
+            });
+
+            block.appendChild(button);
+        });
+
+        // Re-initialize feather icons if any were in the text (optional) and for copy buttons
+        if (typeof feather !== 'undefined') {
+            feather.replace();
         }
 
         buildTOC();
