@@ -1,0 +1,277 @@
+// ── Helpers ────────────────────────────────────────────────────────────────
+function replaceFeather() {
+    if (typeof feather !== 'undefined') feather.replace();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// ── Theme Toggle ────────────────────────────────────────────────────────────
+// main.js loads synchronously at the end of <body> so the DOM is fully
+// available here. The icon is updated eagerly (before DOMContentLoaded)
+// so the correct sun/moon icon renders without waiting for later init.
+const themeToggle = document.querySelector('.theme-toggle');
+
+if (themeToggle) {
+    const activeTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+
+    if (activeTheme === 'dark') {
+        themeToggle.innerHTML = '<i data-feather="sun"></i>';
+    }
+    // Sync aria-pressed to the actual theme on load (not hardcoded in HTML)
+    themeToggle.setAttribute('aria-pressed', activeTheme === 'dark' ? 'true' : 'false');
+
+    themeToggle.addEventListener('click', function () {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const theme = isDark ? 'light' : 'dark';
+
+        document.body.classList.add('theme-transition');
+        themeToggle.innerHTML = isDark
+            ? '<i data-feather="moon"></i>'
+            : '<i data-feather="sun"></i>';
+        themeToggle.setAttribute('aria-pressed', isDark ? 'false' : 'true');
+
+        replaceFeather();
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.style.colorScheme = theme;
+        localStorage.setItem('theme', theme);
+
+        setTimeout(() => document.body.classList.remove('theme-transition'), 500);
+    });
+}
+
+// ── DOM-dependent functionality ─────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function () {
+
+    // Replace feather icons once after the full DOM is ready
+    replaceFeather();
+
+    // ── Lightbox ────────────────────────────────────────────────────────────
+    const lightboxModal = document.createElement('div');
+    lightboxModal.className = 'lightbox-modal';
+    lightboxModal.setAttribute('role', 'dialog');
+    lightboxModal.innerHTML = '<button class="lightbox-close" aria-label="Close lightbox">&times;</button><img src="" alt="">';
+    document.body.appendChild(lightboxModal);
+
+    const lightboxImg = lightboxModal.querySelector('img');
+    const lightboxCloseBtn = lightboxModal.querySelector('.lightbox-close');
+
+    document.querySelectorAll('a.lightbox-thumbnail').forEach(link => {
+        link.addEventListener('click', function (e) {
+            e.preventDefault();
+            lightboxImg.src = this.getAttribute('href');
+            lightboxImg.alt = this.querySelector('img')?.getAttribute('alt') || '';
+            lightboxModal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+    });
+
+    lightboxModal.addEventListener('click', function (e) {
+        if (e.target === lightboxModal || e.target === lightboxCloseBtn) {
+            closeLightbox();
+        }
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && lightboxModal.classList.contains('active')) {
+            closeLightbox();
+        }
+    });
+
+    function closeLightbox() {
+        lightboxModal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    // ── Mobile Menu ─────────────────────────────────────────────────────────
+    const mobileMenuBtn = document.querySelector('.mobile-menu-btn');
+    const mobileCloseBtn = document.querySelector('.mobile-close-btn');
+    const navItems = document.querySelector('.nav-items');
+    const mobileBackdrop = document.querySelector('.mobile-menu-backdrop');
+
+    function openMobileMenu() {
+        navItems.classList.add('active');
+        mobileBackdrop.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeMobileMenu() {
+        navItems.classList.remove('active');
+        mobileBackdrop.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    if (mobileMenuBtn) {
+        mobileMenuBtn.addEventListener('click', openMobileMenu);
+        mobileCloseBtn.addEventListener('click', closeMobileMenu);
+        mobileBackdrop.addEventListener('click', closeMobileMenu);
+    }
+
+    // ── Back to Top ─────────────────────────────────────────────────────────
+    const backToTop = document.getElementById('back-to-top');
+
+    if (backToTop) {
+        // RAF-throttled scroll listener — avoids layout thrashing
+        let scrollTicking = false;
+        window.addEventListener('scroll', function () {
+            if (!scrollTicking) {
+                requestAnimationFrame(function () {
+                    backToTop.classList.toggle('visible', window.scrollY > 100);
+                    scrollTicking = false;
+                });
+                scrollTicking = true;
+            }
+        }, { passive: true });
+
+        backToTop.addEventListener('click', function () {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    }
+
+    // ── Responsive Tables ───────────────────────────────────────────────────
+    // Wraps tables in a scrollable container; uses a CSS class (not inline
+    // style) to suppress the table's own bottom margin inside the wrapper.
+    document.querySelectorAll('table').forEach(table => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'table-responsive-wrapper';
+        table.classList.add('in-wrapper');
+        table.parentNode.insertBefore(wrapper, table);
+        wrapper.appendChild(table);
+    });
+
+    // ── Code Block Copy Button ──────────────────────────────────────────────
+    document.querySelectorAll('pre').forEach(block => {
+        if (block.querySelector('.copy-code-btn') || !block.querySelector('code')) return;
+
+        const button = document.createElement('button');
+        button.className = 'copy-code-btn';
+        button.setAttribute('aria-label', 'Copy code');
+        button.setAttribute('title', 'Copy to clipboard');
+        button.innerHTML = '<i data-feather="copy"></i>';
+
+        button.addEventListener('click', () => {
+            const code = block.querySelector('code');
+            if (!code) return;
+
+            const textToCopy = code.textContent.trimEnd();
+
+            const showSuccess = () => {
+                button.innerHTML = '<i data-feather="check"></i>';
+                button.classList.add('copied');
+                replaceFeather();
+
+                setTimeout(() => {
+                    button.innerHTML = '<i data-feather="copy"></i>';
+                    button.classList.remove('copied');
+                    replaceFeather();
+                }, 2000);
+            };
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(textToCopy).then(showSuccess).catch(err => {
+                    console.error('Failed to copy text: ', err);
+                });
+            } else {
+                const textArea = document.createElement("textarea");
+                textArea.value = textToCopy;
+                textArea.style.position = "fixed";
+                textArea.style.opacity = "0";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    showSuccess();
+                } catch (err) {
+                    console.error('Fallback copy failed', err);
+                }
+                document.body.removeChild(textArea);
+            }
+        });
+
+        block.appendChild(button);
+    });
+    // Replace all copy icons in one pass after every button is in the DOM
+    replaceFeather();
+
+    // ── AJAX Pagination ─────────────────────────────────────────────────────
+    let currentPageController = null;
+
+    async function loadPage(url, isPopState = false) {
+        const container = document.getElementById('pagination-container');
+        if (!container) return;
+
+        // Cancel any in-flight request to prevent race conditions
+        if (currentPageController) {
+            currentPageController.abort();
+        }
+        currentPageController = new AbortController();
+
+        container.classList.add('loading');
+
+        try {
+            const response = await fetch(url, { signal: currentPageController.signal });
+            if (!response.ok) throw new Error('Network response was not ok');
+
+            const text = await response.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(text, 'text/html');
+
+            const newContainer = doc.getElementById('pagination-container');
+            if (newContainer) {
+                container.innerHTML = newContainer.innerHTML;
+
+                if (doc.title) {
+                    document.title = doc.title;
+                }
+
+                if (!isPopState) {
+                    window.history.pushState({ path: url }, '', url);
+                    // Umami intercepts history.pushState natively — no manual track() needed
+                }
+
+                replaceFeather();
+
+                // Scroll to top of the section (just below the fixed header)
+                container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+               
+            }
+        } catch (error) {
+            if (error.name === 'AbortError') return; // Intentional cancellation — do nothing
+            console.error('Pagination fetch error:', error);
+            window.location.href = url; // Fallback to full navigation
+        } finally {
+            container.classList.remove('loading');
+            currentPageController = null;
+        }
+    }
+
+    function initAjaxPagination() {
+        const container = document.getElementById('pagination-container');
+        if (!container) return;
+
+        container.addEventListener('click', function (e) {
+            const link = e.target.closest('a');
+            if (!link || !link.href || link.classList.contains('disabled') || !link.closest('.pagination')) return;
+
+            const url = new URL(link.href);
+            if (url.origin !== window.location.origin) return;
+
+            e.preventDefault();
+            loadPage(url.href);
+        });
+    }
+
+    // Handle back/forward buttons
+    window.addEventListener('popstate', function (e) {
+        if (e.state && e.state.path) {
+            loadPage(e.state.path, true);
+        } else {
+            loadPage(window.location.href, true);
+        }
+    });
+
+    // Initialize pagination if the container exists
+    if (document.getElementById('pagination-container')) {
+        window.history.replaceState({ path: window.location.href }, '', window.location.href);
+        initAjaxPagination();
+    }
+});
