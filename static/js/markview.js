@@ -20,22 +20,59 @@ document.addEventListener('DOMContentLoaded', () => {
         expandSidebarBtn.classList.add('hidden');
     });
 
+    const headerUploadInput = document.getElementById('header-markdown-upload');
+    const headerUploadContainer = document.getElementById('header-upload-container');
+
     // Handle File Upload
-    uploadInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
+    function processFile(file) {
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = (event) => {
             const markdownText = event.target.result;
+            
+            // Clear existing content to be safe
+            markdownContent.innerHTML = '';
+            tocNav.innerHTML = '';
+            
+            // Reset sidebar state if collapsed
+            sidebar.classList.remove('collapsed');
+            expandSidebarBtn.classList.add('hidden');
+            
             renderMarkdown(markdownText);
             
-            // Hide upload, show viewer
+            // Hide upload, show viewer and header upload button
             uploadContainer.classList.add('hidden');
             viewerContainer.classList.remove('hidden');
+            if (headerUploadContainer) {
+                headerUploadContainer.classList.remove('hidden');
+            }
+            
+            // Re-initialize feather icons for new content if needed
+            if (typeof feather !== 'undefined') {
+                feather.replace();
+            }
+
+            // Scroll back to top for both main window and sidebar
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            if (sidebar) {
+                sidebar.scrollTop = 0;
+            }
         };
         reader.readAsText(file);
+    }
+
+    uploadInput.addEventListener('change', (e) => {
+        processFile(e.target.files[0]);
+        e.target.value = ''; // Reset input
     });
+    
+    if (headerUploadInput) {
+        headerUploadInput.addEventListener('change', (e) => {
+            processFile(e.target.files[0]);
+            e.target.value = ''; // Reset input
+        });
+    }
 
     function renderMarkdown(markdown) {
         // Parse markdown to HTML
@@ -70,22 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof hljs !== 'undefined') {
             markdownContent.querySelectorAll('pre code').forEach((block) => {
                 try {
-                    const match = block.className.match(/language-([a-z0-9\-]+)/i);
-                    let highlighted = false;
-                    
-                    if (match && hljs.getLanguage(match[1])) {
-                        const result = hljs.highlight(block.textContent, { language: match[1] });
-                        block.innerHTML = result.value;
-                        highlighted = true;
-                    } else {
-                        const result = hljs.highlightAuto(block.textContent);
-                        block.innerHTML = result.value;
-                        highlighted = true;
-                    }
-                    
-                    if (highlighted) {
-                        block.classList.add('hljs');
-                    }
+                    hljs.highlightElement(block);
                 } catch (err) {
                     console.error("Syntax highlighting error:", err);
                 }

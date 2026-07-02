@@ -22,6 +22,41 @@ header.markview-header {
     align-items: center;
 }
 
+.header-center {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+}
+
+.header-upload-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 1rem;
+    background-color: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.header-upload-btn:hover {
+    color: var(--color-text);
+    border-color: var(--color-accent);
+    background-color: var(--color-accent-subtle);
+    transform: translateY(-1.5px);
+}
+
+.header-upload-btn i, .header-upload-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
 .header-inner .title,
 .header-inner .name {
     margin-bottom: 0 !important;
@@ -176,7 +211,8 @@ header.markview-header {
     align-self: flex-start;
     z-index: 20;
     border: 1px solid var(--color-border);
-    background-color: var(--color-bg-elevated);
+    background-color: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     transition: all var(--transition-fast);
 }

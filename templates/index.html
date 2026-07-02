@@ -16,6 +16,10 @@
     <!-- Highlight.js for syntax highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/base16/dracula.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/toml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
 
     <script>
         (function () {
@@ -33,10 +37,19 @@
 </head>
 <body>
     <header class="markview-header">
-        <div class="header-inner">
+        <div class="header-inner" style="position: relative;">
             <a href="{{ config.base_url | safe }}" class="title" aria-label="Go to homepage">
                 <span class="name">{{ config.title }}</span>
             </a>
+            
+            <div class="header-center hidden" id="header-upload-container">
+                <input type="file" id="header-markdown-upload" accept=".md,.markdown,text/markdown" class="hidden" />
+                <label for="header-markdown-upload" class="header-upload-btn">
+                    <i data-feather="upload"></i>
+                    <span>Upload New File</span>
+                </label>
+            </div>
+            
             <nav>
                 <button class="theme-toggle" title="Toggle Dark Mode" aria-label="Switch to dark mode">
                     <i data-feather="moon"></i>
