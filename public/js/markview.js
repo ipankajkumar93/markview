@@ -23,6 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const headerUploadInput = document.getElementById('header-markdown-upload');
     const headerUploadContainer = document.getElementById('header-upload-container');
 
+    let currentFileName = 'markview-export.pdf';
+
     // Handle File Upload
     function processFile(file) {
         if (!file) return;
@@ -30,6 +32,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const reader = new FileReader();
         reader.onload = (event) => {
             const markdownText = event.target.result;
+            
+            // Set filename based on original file
+            if (file.name) {
+                currentFileName = file.name.replace(/\.(md|markdown)$/i, '.pdf');
+            } else {
+                currentFileName = 'markview-export.pdf';
+            }
             
             // Clear existing content to be safe
             markdownContent.innerHTML = '';
@@ -71,6 +80,14 @@ document.addEventListener('DOMContentLoaded', () => {
         headerUploadInput.addEventListener('change', (e) => {
             processFile(e.target.files[0]);
             e.target.value = ''; // Reset input
+        });
+    }
+
+    const exportBtn = document.getElementById('export-pdf-btn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+            if (!markdownContent || markdownContent.innerHTML.trim() === '') return;
+            window.print();
         });
     }
 

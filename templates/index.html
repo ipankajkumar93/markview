@@ -13,6 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <!-- DOMPurify for sanitizing HTML -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+    
     <!-- Highlight.js for syntax highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/base16/dracula.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -44,10 +45,14 @@
             
             <div class="header-center hidden" id="header-upload-container">
                 <input type="file" id="header-markdown-upload" accept=".md,.markdown,text/markdown" class="hidden" />
-                <label for="header-markdown-upload" class="header-upload-btn">
+                <label for="header-markdown-upload" class="header-action-btn">
                     <i data-feather="upload"></i>
                     <span>Upload New File</span>
                 </label>
+                <button class="header-action-btn" id="export-pdf-btn">
+                    <i data-feather="download"></i>
+                    <span>Export PDF</span>
+                </button>
             </div>
             
             <nav>
@@ -85,6 +90,26 @@
             <div class="markdown-content" id="markdown-content"></div>
         </div>
     </main>
+
+    <footer>
+        <div class="footer-inner">
+            <div class="footer-left">
+               Copyright ©  {{ now() | date(format="%Y") }} All rights reserved.
+            </div>
+            <div class="footer-center">
+                Crafted with ❤️ by {{ config.author }}
+            </div>
+            <div class="footer-right">
+                <div class="social-links">
+                    {% if config.extra.github %}
+                    <a href="{{ config.extra.github }}" target="_blank" rel="noopener noreferrer me" title="GitHub" class="social-icon" aria-label="GitHub">
+                        <i data-feather="github"></i>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </footer>
 
     <button id="back-to-top" class="back-to-top" title="Back to top" aria-label="Back to top">
         <i data-feather="arrow-up"></i>

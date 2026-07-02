@@ -1,12 +1,10 @@
-base_url = "https://example.com"
+base_url = "https://markview.pankajkumar.xyz"
 title = "Markview"
+author = "Pankaj Kumar"
 compile_sass = false
 build_search_index = false
 
 
 [extra]
 favicon = "favicon.svg"
-main_menu = [
-    {url = "/", name = "Home", icon = "home"},
-    {url = "https://github.com/ipankajkumar93/markview", name = "GitHub", icon = "github"}
-]
+github = "https://github.com/ipankajkumar93/markview"

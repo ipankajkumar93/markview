@@ -3,4 +3,4 @@ Allow: /
 Disallow: /search_index.en.js
 Disallow: /elasticlunr.min.js
 
-Sitemap: https://pankajkumar.xyz/sitemap.xml
+Sitemap: https://markview.pankajkumar.xyz/sitemap.xml
