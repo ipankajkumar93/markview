@@ -224,7 +224,7 @@ header.markview-header {
 .mv-recent-item {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    justify-content: space-between;
     width: 100%;
     padding: 0.7rem 1rem;
     margin-bottom: 0.4rem;
@@ -240,7 +240,39 @@ header.markview-header {
     border-color: var(--color-accent);
     background: var(--color-accent-subtle);
 }
-.mv-recent-icon { font-size: 1.1rem; }
+.mv-recent-content {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-grow: 1;
+    overflow: hidden;
+}
+.mv-recent-delete {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s, color 0.2s;
+    padding: 0.4rem;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+.mv-recent-delete:hover {
+    color: var(--color-accent);
+    background: var(--color-bg);
+}
+.mv-recent-item:hover .mv-recent-delete {
+    opacity: 1;
+}
+.mv-recent-delete i, .mv-recent-delete svg {
+    width: 16px;
+    height: 16px;
+}
+.mv-recent-icon { font-size: 1.1rem; flex-shrink: 0; }
 .mv-recent-info {
     display: flex;
     flex-direction: column;

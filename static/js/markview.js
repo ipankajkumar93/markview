@@ -92,6 +92,12 @@ document.addEventListener('DOMContentLoaded', () => {
         renderRecentFiles();
     }
 
+    function removeRecentFile(url) {
+        const list = getRecentFiles().filter(f => f.url !== url);
+        localStorage.setItem(RECENT_KEY, JSON.stringify(list));
+        renderRecentFiles();
+    }
+
     function renderRecentFiles() {
         const container = document.getElementById('mv-recent-files');
         if (!container) return;
@@ -102,16 +108,26 @@ document.addEventListener('DOMContentLoaded', () => {
             list.map(f => {
                 const domain = (() => { try { return new URL(f.url).hostname; } catch { return ''; } })();
                 const age = formatAge(f.ts);
-                return '<button class="mv-recent-item" data-url="' + f.url + '">' +
+                return '<div class="mv-recent-item" data-url="' + f.url + '">' +
+                    '<div class="mv-recent-content" data-url="' + f.url + '">' +
                     '<span class="mv-recent-icon">📄</span>' +
                     '<span class="mv-recent-info">' +
                     '<span class="mv-recent-title">' + (f.title || f.url.split('/').pop() || 'Document') + '</span>' +
                     '<span class="mv-recent-meta">' + domain + (age ? ' · ' + age : '') + '</span>' +
-                    '</span></button>';
+                    '</span></div>' +
+                    '<button class="mv-recent-delete" data-url="' + f.url + '" title="Remove from history" aria-label="Remove from history"><i data-feather="x"></i></button>' +
+                    '</div>';
             }).join('');
-        container.querySelectorAll('.mv-recent-item').forEach(btn => {
+        container.querySelectorAll('.mv-recent-content').forEach(btn => {
             btn.addEventListener('click', () => loadFromUrl(btn.dataset.url));
         });
+        container.querySelectorAll('.mv-recent-delete').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                removeRecentFile(btn.dataset.url);
+            });
+        });
+        if (typeof feather !== 'undefined') feather.replace();
     }
 
     function formatAge(ts) {
@@ -733,7 +749,7 @@ document.addEventListener('DOMContentLoaded', () => {
             '<tr><td><kbd>Ctrl L</kbd></td><td>Focus URL input</td></tr>' +
             '<tr><td><kbd>Ctrl P</kbd></td><td>Export PDF</td></tr>' +
             '<tr><td><kbd>Esc</kbd></td><td>Return to upload screen</td></tr>' +
-            '<tr><td><kbd>Ctrl V</kbd></td><td>Paste markdown directly</td></tr>' +
+            '<tr><td><kbd>Ctrl+V</kbd></td><td>Paste markdown directly</td></tr>' +
             '</table>' +
             '<p class="mv-shortcuts-hint">Press <kbd>?</kbd> or click outside to close</p>' +
             '</div>';

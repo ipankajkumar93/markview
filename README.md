@@ -33,7 +33,7 @@ A beautiful, lightning-fast, fully client-side Markdown viewer. Drop in any `.md
 | `Ctrl O` | Open file picker |
 | `Ctrl L` | Focus URL input |
 | `Ctrl P` | Export PDF |
-| `Ctrl V` | Paste markdown directly |
+| `Ctrl+V` | Paste markdown directly |
 | `Esc` | Return to upload screen |
 
 ## 🚀 Running Locally
