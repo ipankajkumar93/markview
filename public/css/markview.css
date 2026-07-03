@@ -1,5 +1,19 @@
 /* Markview Specific Styles */
 
+/* The global main.css applies `animation: fadeInUp` to every <main> element.
+   On markview this looks like a jerk/stutter — disable all animation so the
+   page renders instantly with no movement or opacity flash. */
+main.markview-main {
+    animation: none;
+}
+
+/* The global html rule sets scroll-behavior: smooth which causes the browser to
+   smooth-scroll back to the last scroll position on reload (scrollbar mid-page).
+   Override to instant so the page always opens at the top. */
+html:has(main.markview-main) {
+    scroll-behavior: auto;
+}
+
 header.markview-header {
     max-width: 100% !important;
     width: 100%;
@@ -54,6 +68,7 @@ header.markview-header {
 }
 
 .header-action-btn i, .header-action-btn svg {
+    display: inline-block;
     width: 16px;
     height: 16px;
 }
@@ -83,24 +98,237 @@ header.markview-header {
     padding: 2rem 1rem;
     display: flex;
     flex-direction: column;
+    position: relative; /* needed for the loading overlay */
 }
 
-/* Upload State */
+/* ── Loading Overlay ─────────────────────────────────────────────────────── */
+#mv-loading-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 1rem;
+}
+#mv-loading-overlay.visible {
+    display: flex;
+}
+.mv-loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--color-border);
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+.mv-loading-msg {
+    color: var(--color-text);
+    font-size: 0.95rem;
+    font-family: var(--font-body);
+}
+
+/* ── Doc Stats bar (word count · reading time) ───────────────────────────── */
+/* Lives INSIDE the viewer, above markdown content — never in the site header */
+.markdown-wrapper {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.mv-doc-stats-bar {
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    font-family: var(--font-body);
+    padding: 0.4rem 0 0.75rem 0;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 1.5rem;
+    letter-spacing: 0.01em;
+}
+
+/* ── Modals ──────────────────────────────────────────────────────────────── */
+.mv-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(4px);
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.mv-modal-box {
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 2rem;
+    min-width: 320px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+}
+.mv-modal-box h3 {
+    margin: 0 0 1.25rem 0;
+    font-size: 1.1rem;
+    font-family: var(--font-body);
+    color: var(--color-text);
+}
+.mv-modal-box table {
+    border-collapse: collapse;
+    width: 100%;
+}
+.mv-modal-box td {
+    padding: 0.4rem 0.75rem 0.4rem 0;
+    color: var(--color-text-secondary);
+    font-size: 0.9rem;
+    border: none;
+}
+.mv-modal-box td:first-child {
+    white-space: nowrap;
+}
+.mv-modal-box kbd {
+    display: inline-block;
+    padding: 0.1em 0.45em;
+    font-family: var(--font-mono);
+    font-size: 0.8em;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    color: var(--color-text);
+}
+.mv-shortcuts-hint {
+    margin: 1rem 0 0 0;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    text-align: center;
+}
+
+/* ── Recent Files ─────────────────────────────────────────────────────────── */
+.mv-recent-files {
+    margin-top: 1.5rem;
+    width: 100%;
+    max-width: 520px;
+}
+.mv-recent-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+    margin: 0 0 0.6rem 0;
+}
+.mv-recent-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.7rem 1rem;
+    margin-bottom: 0.4rem;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition: border-color 0.15s, background-color 0.15s;
+}
+.mv-recent-item:hover {
+    border-color: var(--color-accent);
+    background: var(--color-accent-subtle);
+}
+.mv-recent-content {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-grow: 1;
+    overflow: hidden;
+}
+.mv-recent-delete {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s, color 0.2s;
+    padding: 0.4rem;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+.mv-recent-delete:hover {
+    color: var(--color-accent);
+    background: var(--color-bg);
+}
+.mv-recent-item:hover .mv-recent-delete {
+    opacity: 1;
+}
+.mv-recent-delete i, .mv-recent-delete svg {
+    width: 16px;
+    height: 16px;
+}
+.mv-recent-icon { font-size: 1.1rem; flex-shrink: 0; }
+.mv-recent-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    overflow: hidden;
+}
+.mv-recent-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--color-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mv-recent-meta {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+}
+
+/* ── Keyboard hint below upload box ──────────────────────────────────────── */
+.mv-keyboard-hint {
+    margin-top: 0.75rem;
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    text-align: center;
+}
+.mv-keyboard-hint kbd {
+    display: inline-block;
+    padding: 0.1em 0.4em;
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    color: var(--color-text-secondary);
+}
+
+/* Upload container stacks its children vertically */
 .upload-container {
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
     flex-grow: 1;
+    padding: 2rem 0;
 }
 
 .upload-box {
     text-align: center;
-    border: 2px dashed var(--border);
+    border: 2px dashed var(--color-border);
     border-radius: 12px;
     padding: 4rem;
     background-color: var(--color-bg-elevated);
     box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    transition: border-color 0.3s ease;
+    transition: border-color 0.3s ease, background-color 0.3s ease, transform 0.3s ease;
 }
 
 .upload-box:hover {
@@ -108,6 +336,7 @@ header.markview-header {
 }
 
 .upload-icon {
+    display: inline-block;
     width: 64px;
     height: 64px;
     color: var(--color-text-muted);
@@ -133,9 +362,14 @@ header.markview-header {
     padding: 0.75rem 1.5rem;
     background-color: var(--color-accent);
     color: var(--color-bg);
+    border: none;
     border-radius: 6px;
     cursor: pointer;
     font-weight: 500;
+    font-family: inherit;
+    font-size: 1rem;
+    line-height: inherit;
+    text-align: center;
     transition: background-color 0.2s ease, transform 0.1s ease;
 }
 
@@ -268,13 +502,13 @@ header.markview-header {
 
 /* Markdown Content Area */
 .markdown-content {
-    flex-grow: 1;
     padding: 0 1rem 4rem 1rem;
     margin: 0 auto;
     font-family: var(--font-body);
     color: var(--color-text-secondary);
     line-height: 1.6;
     max-width: 900px;
+    width: 100%;
 }
 
 .markdown-content h1,
@@ -321,15 +555,56 @@ header.markview-header {
 .markdown-content blockquote {
     border-left: 4px solid var(--color-accent);
     margin: 1.5em 0;
-    padding-left: 1em;
+    padding: 0.5em 0 0.5em 1em;
     color: var(--color-text-muted);
     font-style: italic;
+    background: var(--color-bg-elevated);
+    border-radius: 0 6px 6px 0;
+}
+
+/* Nested blockquotes — progressively more muted */
+.markdown-content blockquote blockquote {
+    border-left-color: var(--color-border);
+    background: transparent;
+    margin-left: 0;
+    margin-top: 0.5em;
+    margin-bottom: 0;
+}
+
+.markdown-content blockquote blockquote blockquote {
+    border-left-color: transparent;
+    font-size: 0.92em;
 }
 
 .markdown-content img {
     max-width: 100%;
     height: auto;
     border-radius: 8px;
+    display: block;
+}
+
+/* Graceful broken image replacement (JS replaces <img> with this span) */
+.markdown-content .img-broken {
+    display: block;
+    padding: 0.5rem 1rem;
+    background: var(--color-bg-elevated);
+    border: 1px dashed var(--color-border);
+    border-radius: 6px;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    font-style: italic;
+    margin: 0.5rem 0;
+}
+
+/* Math span containers injected by the placeholder pipeline */
+.math-display {
+    display: block;
+    text-align: center;
+    overflow-x: auto;
+    padding: 0.5rem 0;
+}
+.math-inline {
+    display: inline;
 }
 
 .markdown-content a {
@@ -345,13 +620,216 @@ header.markview-header {
 
 .markdown-content th,
 .markdown-content td {
-    border: 1px solid var(--border);
+    border: 1px solid var(--color-border);
     padding: 0.75rem;
     text-align: left;
 }
 
 .markdown-content th {
     background-color: var(--color-bg-elevated);
+}
+
+/* Drag and Drop Active State */
+.upload-box.drag-active {
+    border-color: var(--color-accent);
+    background-color: var(--color-accent-subtle);
+    transform: scale(1.02);
+}
+
+.upload-box.drag-active * {
+    pointer-events: none;
+}
+
+/* ── Task Lists ─────────────────────────────────────────────────────────── */
+.markdown-content .task-list-item {
+    list-style: none;
+    margin-left: -1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.markdown-content .task-list-item input[type="checkbox"] {
+    margin: 0;
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--color-accent);
+    flex-shrink: 0;
+}
+
+/* ── Admonitions (GitHub-style > [!NOTE] etc.) ──────────────────────────── */
+.admonition {
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin: 1.5em 0;
+    border-left: 4px solid;
+}
+.admonition-title {
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.admonition-body {
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+.admonition-note    { background: var(--color-bg-elevated); border-color: #58a6ff; }
+.admonition-note .admonition-title    { color: #58a6ff; }
+.admonition-tip     { background: var(--color-bg-elevated); border-color: #3fb950; }
+.admonition-tip .admonition-title     { color: #3fb950; }
+.admonition-warning { background: var(--color-bg-elevated); border-color: #d29922; }
+.admonition-warning .admonition-title { color: #d29922; }
+.admonition-important { background: var(--color-bg-elevated); border-color: #a371f7; }
+.admonition-important .admonition-title { color: #a371f7; }
+.admonition-caution { background: var(--color-bg-elevated); border-color: #f85149; }
+.admonition-caution .admonition-title { color: #f85149; }
+
+/* ── Footnotes ──────────────────────────────────────────────────────────── */
+.markdown-content .footnotes {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    margin-top: 2rem;
+}
+.markdown-content .footnotes ol {
+    padding-left: 1.5rem;
+}
+.markdown-content .footnotes li {
+    margin-bottom: 0.4rem;
+}
+.markdown-content .footnote-ref {
+    font-size: 0.75rem;
+    vertical-align: super;
+    line-height: 0;
+}
+.markdown-content .footnote-ref a {
+    color: var(--color-accent);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+/* ── Details / Summary ──────────────────────────────────────────────────── */
+.markdown-content details {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin: 1.5em 0;
+    background: var(--color-bg-elevated);
+}
+.markdown-content details[open] > summary {
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 0.5rem;
+}
+.markdown-content summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--color-text);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    user-select: none;
+}
+.markdown-content summary::-webkit-details-marker { display: none; }
+.markdown-content summary::before {
+    content: '▶';
+    font-size: 0.7rem;
+    transition: transform 0.2s;
+    color: var(--color-text-muted);
+}
+.markdown-content details[open] > summary::before { transform: rotate(90deg); }
+
+/* ── Inline elements: kbd, mark ─────────────────────────────────────────── */
+.markdown-content kbd {
+    display: inline-block;
+    padding: 0.15em 0.5em;
+    font-family: var(--font-mono);
+    font-size: 0.82em;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-bottom-width: 3px;
+    border-radius: 4px;
+    color: var(--color-text);
+    line-height: 1.4;
+}
+.markdown-content mark {
+    background-color: rgba(255, 215, 0, 0.35);
+    color: inherit;
+    border-radius: 3px;
+    padding: 0.05em 0.25em;
+}
+
+/* URL Input Group */
+.upload-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.or-divider {
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.url-input-group {
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 400px;
+}
+
+#markdown-url {
+    flex-grow: 1;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-body);
+}
+
+#markdown-url:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 2px var(--color-accent-subtle);
+}
+
+.url-btn {
+    white-space: nowrap;
+}
+
+/* TOC Active State */
+.toc-nav a {
+    border-left: 2px solid transparent;
+    padding-left: 0.5rem;
+    margin-left: -0.5rem;
+}
+
+.toc-nav a.active {
+    color: var(--color-accent);
+    font-weight: 600;
+    border-left-color: var(--color-accent);
+}
+
+/* Mermaid & KaTeX overrides */
+.mermaid {
+    display: flex;
+    justify-content: center;
+    margin: 2rem 0;
+    overflow-x: auto;
+    background-color: var(--color-bg-elevated);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.katex-display {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 1em 0;
 }
 
 /* Responsive */

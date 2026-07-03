@@ -6,11 +6,11 @@
     <title>Redirecting...</title>
     
     <!-- Meta refresh to automatically redirect to home -->
-    <meta http-equiv="refresh" content="0; url=https://markview.pankajkumar.xyz">
+    <meta http-equiv="refresh" content="0; url={{ config.base_url | safe }}">
     
     <!-- JavaScript fallback for faster redirect -->
     <script>
-        window.location.replace("https://markview.pankajkumar.xyz");
+        window.location.replace("{{ config.base_url | safe }}");
     </script>
     <style>
         body {
@@ -28,7 +28,7 @@
 <body>
     <div>
         <p>Redirecting you back to the home page...</p>
-        <a href="https://markview.pankajkumar.xyz" style="color: #58a6ff; text-decoration: none;">Click here if you are not redirected automatically</a>
+        <a href="{{ config.base_url | safe }}" style="color: #58a6ff; text-decoration: none;">Click here if you are not redirected automatically</a>
     </div>
 </body>
 </html>
