@@ -66,20 +66,26 @@ document.addEventListener('DOMContentLoaded', () => {
         breaks: true,
     });
 
-    const renderer = new window.marked.Renderer();
-    const originalCodeRenderer = renderer.code.bind(renderer);
-    
-    renderer.code = function(code, language, isEscaped) {
-        if (language === 'mermaid') {
-            return `<div class="mermaid">${code}</div>`;
-        }
-        if (language === 'math') {
-            return `\\[${code}\\]`;
-        }
-        return originalCodeRenderer(code, language, isEscaped);
-    };
-
-    window.marked.use({ renderer });
+    // Use a marked extension to intercept ONLY mermaid fenced blocks.
+    // We cannot override renderer.code because modern marked (v9+) passes a
+    // token object internally and calling the original renderer with plain
+    // strings causes "Cannot read properties of undefined (reading 'replace')".
+    window.marked.use({
+        extensions: [{
+            name: 'mermaid',
+            level: 'block',
+            start(src) { return src.indexOf('```mermaid'); },
+            tokenizer(src) {
+                const match = src.match(/^```mermaid\n([\s\S]*?)```[ \t]*(?:\n|$)/);
+                if (match) {
+                    return { type: 'mermaid', raw: match[0], text: match[1].trim() };
+                }
+            },
+            renderer(token) {
+                return `<div class="mermaid">${token.text}</div>\n`;
+            }
+        }]
+    });
 
     // Intersect Observer for TOC Active Highlighting
     const observerOptions = {
@@ -227,21 +233,124 @@ document.addEventListener('DOMContentLoaded', () => {
         sidebar.classList.remove('collapsed');
         expandSidebarBtn.classList.add('hidden');
 
-        // Pre-process math blocks that might not be caught by marked
-        let processedMarkdown = markdown.replace(/\$\$(.*?)\$\$/gs, (_, math) => `\\[${math}\\]`);
-        processedMarkdown = processedMarkdown.replace(/(?<!\$)\$([^$\n]+?)\$(?!\$)/g, (_, math) => `\\(${math}\\)`);
+        // Strip YAML/TOML frontmatter — anchored to string start (no 'm' flag)
+        // The 'm' flag would make ^ match start of any line, accidentally matching
+        // '---' horizontal rules mid-document and deleting content between them.
+        let processedMarkdown = markdown
+            .replace(/^---[\s\S]*?---[ \t]*\n/, '')
+            .replace(/^\+\+\+[\s\S]*?\+\+\+[ \t]*\n/, '');
+
+        // ==highlight== => <mark>highlight</mark>
+        processedMarkdown = processedMarkdown.replace(/==([^=\n]+)==/g, '<mark>$1</mark>');
+
+        // ── Math Extraction ──────────────────────────────────────────────────────
+        // We CANNOT use \[...\] or \(...\) as pre-processing output because
+        // marked.js treats \[ as an escaped bracket and outputs a literal '[',
+        // destroying the KaTeX delimiter before KaTeX ever sees it.
+        //
+        // Strategy: extract math blocks now → replace with unique opaque tokens
+        // (which marked won't touch) → parse markdown → restore tokens as
+        // <span class="math-block">...</span> which KaTeX renderMathInElement finds.
+        const mathStore = [];
+
+        // Display math: $$...$$  (extract before inline to avoid double-match)
+        processedMarkdown = processedMarkdown.replace(/\$\$([\s\S]+?)\$\$/g, (_, tex) => {
+            const idx = mathStore.length;
+            mathStore.push({ tex: tex.trim(), display: true });
+            return `MATHPLACEHOLDER${idx}END`;
+        });
+
+        // Inline math: $...$  (single line only, no leading/trailing space)
+        processedMarkdown = processedMarkdown.replace(/(?<![\\$])\$([^$\n]+?)\$(?!\$)/g, (_, tex) => {
+            const idx = mathStore.length;
+            mathStore.push({ tex: tex.trim(), display: false });
+            return `MATHPLACEHOLDER${idx}END`;
+        });
 
         let rawHtml = window.marked.parse(processedMarkdown);
+
+        // Restore math placeholders as annotated spans (KaTeX auto-render will pick these up)
+        rawHtml = rawHtml.replace(/MATHPLACEHOLDER(\d+)END/g, (_, idx) => {
+            const { tex, display } = mathStore[+idx];
+            if (display) {
+                return `<span class="math-display" data-tex="display">$$${tex}$$</span>`;
+            } else {
+                return `<span class="math-inline" data-tex="inline">$${tex}$</span>`;
+            }
+        });
+
+        // GitHub-style Admonitions: > [!NOTE], [!TIP], [!WARNING], [!IMPORTANT], [!CAUTION]
+        rawHtml = rawHtml.replace(
+            /<blockquote>\s*<p>\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]([\s\S]*?)<\/p>\s*<\/blockquote>/gi,
+            (_, type, body) => {
+                const t = type.toLowerCase();
+                const icons = { note: '📝', tip: '💡', warning: '⚠️', important: '❗', caution: '🔥' };
+                const icon = icons[t] || '📝';
+                return `<div class="admonition admonition-${t}"><div class="admonition-title">${icon} ${type.charAt(0)+type.slice(1).toLowerCase()}</div><div class="admonition-body">${body.trim()}</div></div>`;
+            }
+        );
+
+        // Footnotes: [^1] definitions and references
+        const footnoteRefs = {};
+        let footnoteCounter = 0;
+        // Collect footnote definitions
+        rawHtml = rawHtml.replace(/<p>\[\^([^\]]+)\]:\s*([\s\S]*?)<\/p>/g, (_, id, def) => {
+            footnoteRefs[id] = def.trim();
+            return '';
+        });
+        // Replace footnote references
+        rawHtml = rawHtml.replace(/\[\^([^\]]+)\]/g, (_, id) => {
+            footnoteCounter++;
+            const def = footnoteRefs[id] || id;
+            return `<sup class="footnote-ref"><a href="#fn-${id}" id="fnref-${id}" title="${def}">[${footnoteCounter}]</a></sup>`;
+        });
+        // Build footnote list at the bottom
+        if (Object.keys(footnoteRefs).length > 0) {
+            let fnHtml = '<hr><section class="footnotes"><ol>';
+            Object.entries(footnoteRefs).forEach(([id, def]) => {
+                fnHtml += `<li id="fn-${id}">${def} <a href="#fnref-${id}">↩</a></li>`;
+            });
+            fnHtml += '</ol></section>';
+            rawHtml += fnHtml;
+        }
         
-        // DOMPurify Sanitization - configure to allow MathML and SVGs safely
+        // DOMPurify Sanitization - allow MathML, SVG, details, mark, sub, sup, kbd
         const sanitizeConfig = {
-            ADD_TAGS: ['math', 'mi', 'mn', 'mo', 'ms', 'mspace', 'mtext', 'merror', 'mfrac', 'mpadded', 'mphantom', 'mroot', 'mrow', 'msqrt', 'mstyle', 'mmultiscripts', 'mover', 'mprescripts', 'msub', 'msubsup', 'msup', 'munder', 'munderover', 'none', 'semantics', 'annotation', 'annotation-xml', 'svg', 'path', 'g', 'circle', 'line', 'text', 'polygon', 'rect'],
-            ADD_ATTR: ['display', 'xmlns', 'mathvariant', 'mathcolor', 'mathbackground', 'mathsize', 'dir', 'viewBox', 'd', 'fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'transform', 'class', 'id', 'x', 'y', 'width', 'height', 'r', 'cx', 'cy'],
+            ADD_TAGS: [
+                'math', 'mi', 'mn', 'mo', 'ms', 'mspace', 'mtext', 'merror', 'mfrac',
+                'mpadded', 'mphantom', 'mroot', 'mrow', 'msqrt', 'mstyle', 'mmultiscripts',
+                'mover', 'mprescripts', 'msub', 'msubsup', 'msup', 'munder', 'munderover',
+                'none', 'semantics', 'annotation', 'annotation-xml',
+                'svg', 'path', 'g', 'circle', 'line', 'text', 'polygon', 'rect', 'defs',
+                'marker', 'use', 'clipPath', 'linearGradient', 'stop', 'tspan',
+                'details', 'summary', 'mark', 'kbd', 'sub', 'sup'
+            ],
+            ADD_ATTR: [
+                'display', 'xmlns', 'mathvariant', 'mathcolor', 'mathbackground', 'mathsize',
+                'dir', 'viewBox', 'd', 'fill', 'stroke', 'stroke-width', 'stroke-dasharray',
+                'transform', 'class', 'id', 'x', 'y', 'width', 'height', 'r', 'cx', 'cy',
+                'open', 'checked', 'disabled', 'type', 'marker-end', 'marker-start',
+                'refX', 'refY', 'orient', 'markerWidth', 'markerHeight', 'markerUnits',
+                'x1', 'x2', 'y1', 'y2', 'points', 'rx', 'ry', 'gradientUnits', 'offset'
+            ],
+            FORCE_BODY: true,
         };
         
         const safeHtml = window.DOMPurify.sanitize(rawHtml, sanitizeConfig);
         
         markdownContent.innerHTML = safeHtml;
+
+        // Handle broken images: attach onerror before browser paints.
+        // The 404 network request still fires (unavoidable), but the broken-image
+        // icon is replaced with a clean inline notice.
+        markdownContent.querySelectorAll('img').forEach(img => {
+            img.onerror = function() {
+                const notice = document.createElement('span');
+                notice.className = 'img-broken';
+                notice.textContent = `⚠ Image not found: ${this.alt || this.src}`;
+                this.replaceWith(notice);
+            };
+        });
 
         // Strip TOC if generated by markdown
         const mainHeadings = Array.from(markdownContent.querySelectorAll('h1, h2, h3, h4, h5, h6'));
@@ -272,27 +381,29 @@ document.addEventListener('DOMContentLoaded', () => {
         // 3. Wait for heavy dependencies to finish loading before rendering Math/Mermaid/Shiki
         await preloadHeavyDependencies();
 
-        // 4. Render Math
+        // 4. Render Math via KaTeX
         if (renderMathInElement) {
+            // renderMathInElement looks for $$...$$ and $...$ inside our restored spans
             renderMathInElement(markdownContent, {
                 delimiters: [
-                    {left: '$$', right: '$$', display: true},
-                    {left: '\\[', right: '\\]', display: true},
-                    {left: '$', right: '$', display: false},
-                    {left: '\\(', right: '\\)', display: false}
+                    { left: '$$', right: '$$', display: true  },
+                    { left: '$',  right: '$',  display: false },
+                    { left: '\\[', right: '\\]', display: true  },
+                    { left: '\\(', right: '\\)', display: false },
                 ],
-                throwOnError: false
+                throwOnError: false,
+                ignoredTags: ['script', 'noscript', 'style', 'pre', 'code'],
             });
         }
 
-        // 5. Render Mermaid
-        const mermaidNodes = markdownContent.querySelectorAll('.mermaid');
+        // 5. Render Mermaid — re-initialize with correct theme each time
+        const mermaidNodes = markdownContent.querySelectorAll('.mermaid:not([data-processed="true"])');
         if (mermaidNodes.length > 0 && mermaid) {
             try {
-                // Ensure nodes have unique IDs for mermaid
+                const isDarkForMermaid = document.documentElement.getAttribute('data-theme') === 'dark';
+                mermaid.initialize({ startOnLoad: false, theme: isDarkForMermaid ? 'dark' : 'default' });
                 mermaidNodes.forEach((node, i) => {
-                    const id = `mermaid-${Date.now()}-${i}`;
-                    node.id = id;
+                    node.id = `mermaid-${Date.now()}-${i}`;
                 });
                 mermaid.run({ nodes: Array.from(mermaidNodes) }).catch(e => console.error("Mermaid error", e));
             } catch(e) {

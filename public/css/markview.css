@@ -351,6 +351,31 @@ header.markview-header {
     max-width: 100%;
     height: auto;
     border-radius: 8px;
+    display: block;
+}
+
+/* Graceful broken image replacement (JS replaces <img> with this span) */
+.markdown-content .img-broken {
+    display: block;
+    padding: 0.5rem 1rem;
+    background: var(--color-bg-elevated);
+    border: 1px dashed var(--color-border);
+    border-radius: 6px;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    font-style: italic;
+    margin: 0.5rem 0;
+}
+
+/* Math span containers injected by the placeholder pipeline */
+.math-display {
+    display: block;
+    text-align: center;
+    overflow-x: auto;
+    padding: 0.5rem 0;
+}
+.math-inline {
+    display: inline;
 }
 
 .markdown-content a {
@@ -366,7 +391,7 @@ header.markview-header {
 
 .markdown-content th,
 .markdown-content td {
-    border: 1px solid var(--border);
+    border: 1px solid var(--color-border);
     padding: 0.75rem;
     text-align: left;
 }
@@ -384,6 +409,126 @@ header.markview-header {
 
 .upload-box.drag-active * {
     pointer-events: none;
+}
+
+/* ── Task Lists ─────────────────────────────────────────────────────────── */
+.markdown-content .task-list-item {
+    list-style: none;
+    margin-left: -1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.markdown-content .task-list-item input[type="checkbox"] {
+    margin: 0;
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--color-accent);
+    flex-shrink: 0;
+}
+
+/* ── Admonitions (GitHub-style > [!NOTE] etc.) ──────────────────────────── */
+.admonition {
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin: 1.5em 0;
+    border-left: 4px solid;
+}
+.admonition-title {
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.admonition-body {
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+.admonition-note    { background: var(--color-bg-elevated); border-color: #58a6ff; }
+.admonition-note .admonition-title    { color: #58a6ff; }
+.admonition-tip     { background: var(--color-bg-elevated); border-color: #3fb950; }
+.admonition-tip .admonition-title     { color: #3fb950; }
+.admonition-warning { background: var(--color-bg-elevated); border-color: #d29922; }
+.admonition-warning .admonition-title { color: #d29922; }
+.admonition-important { background: var(--color-bg-elevated); border-color: #a371f7; }
+.admonition-important .admonition-title { color: #a371f7; }
+.admonition-caution { background: var(--color-bg-elevated); border-color: #f85149; }
+.admonition-caution .admonition-title { color: #f85149; }
+
+/* ── Footnotes ──────────────────────────────────────────────────────────── */
+.markdown-content .footnotes {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    margin-top: 2rem;
+}
+.markdown-content .footnotes ol {
+    padding-left: 1.5rem;
+}
+.markdown-content .footnotes li {
+    margin-bottom: 0.4rem;
+}
+.markdown-content .footnote-ref {
+    font-size: 0.75rem;
+    vertical-align: super;
+    line-height: 0;
+}
+.markdown-content .footnote-ref a {
+    color: var(--color-accent);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+/* ── Details / Summary ──────────────────────────────────────────────────── */
+.markdown-content details {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin: 1.5em 0;
+    background: var(--color-bg-elevated);
+}
+.markdown-content details[open] > summary {
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 0.5rem;
+}
+.markdown-content summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--color-text);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    user-select: none;
+}
+.markdown-content summary::-webkit-details-marker { display: none; }
+.markdown-content summary::before {
+    content: '▶';
+    font-size: 0.7rem;
+    transition: transform 0.2s;
+    color: var(--color-text-muted);
+}
+.markdown-content details[open] > summary::before { transform: rotate(90deg); }
+
+/* ── Inline elements: kbd, mark ─────────────────────────────────────────── */
+.markdown-content kbd {
+    display: inline-block;
+    padding: 0.15em 0.5em;
+    font-family: var(--font-mono);
+    font-size: 0.82em;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-bottom-width: 3px;
+    border-radius: 4px;
+    color: var(--color-text);
+    line-height: 1.4;
+}
+.markdown-content mark {
+    background-color: rgba(255, 215, 0, 0.35);
+    color: inherit;
+    border-radius: 3px;
+    padding: 0.05em 0.25em;
 }
 
 /* URL Input Group */
