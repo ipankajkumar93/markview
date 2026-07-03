@@ -255,10 +255,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (headerLoadUrlBtn) {
         headerLoadUrlBtn.addEventListener('click', () => {
-            const url = prompt("Enter Markdown URL (e.g., GitHub raw URL):");
+            showUrlModal();
+        });
+    }
+
+    function showUrlModal() {
+        let modal = document.getElementById('mv-url-modal');
+        if (modal) { modal.remove(); return; }
+        modal = document.createElement('div');
+        modal.id = 'mv-url-modal';
+        modal.className = 'mv-modal';
+        modal.innerHTML = '<div class="mv-modal-box">' +
+            '<h3>Load Markdown from URL</h3>' +
+            '<p style="margin-bottom:1.5rem; color:var(--color-text-muted); font-size: 0.9rem;">Enter a public URL, e.g., a GitHub raw URL.</p>' +
+            '<div class="url-input-group" style="max-width:100%; display:flex; gap: 0.5rem;">' +
+            '<input type="url" id="mv-modal-url-input" placeholder="https://..." style="flex-grow:1; padding: 0.75rem 1rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body);" />' +
+            '<button id="mv-modal-url-btn" class="upload-btn" style="padding: 0.5rem 1.25rem;">Load</button>' +
+            '</div>' +
+            '</div>';
+        
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+        document.body.appendChild(modal);
+
+        const input = document.getElementById('mv-modal-url-input');
+        const btn = document.getElementById('mv-modal-url-btn');
+        input.focus();
+
+        const submit = () => {
+            const url = input.value.trim();
             if (url) {
-                loadFromUrl(url.trim());
+                modal.remove();
+                loadFromUrl(url);
             }
+        };
+
+        btn.addEventListener('click', submit);
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') submit();
         });
     }
 
@@ -534,7 +567,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Write to the dedicated stats bar inside the viewer — never touch the header
         const bar = document.getElementById('mv-doc-stats-bar');
         if (bar) {
-            bar.textContent = words.toLocaleString() + ' words · ~' + readingMin + ' min read';
+            bar.textContent = words.toLocaleString() + ' words  ~ ' + readingMin + ' min read';
             bar.classList.remove('hidden');
         }
     }
@@ -691,7 +724,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (modal) { modal.remove(); return; }
         modal = document.createElement('div');
         modal.id = 'mv-shortcuts-modal';
-        modal.innerHTML = '<div class="mv-shortcuts-box">' +
+        modal.className = 'mv-modal';
+        modal.innerHTML = '<div class="mv-modal-box">' +
             '<h3>Keyboard Shortcuts</h3>' +
             '<table>' +
             '<tr><td><kbd>?</kbd></td><td>Show / hide this panel</td></tr>' +

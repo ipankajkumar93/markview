@@ -141,7 +141,8 @@ header.markview-header {
 }
 
 .mv-doc-stats-bar {
-    font-size: 0.78rem;
+    text-align: center;
+    font-size: 0.9rem;
     color: var(--color-text-muted);
     font-family: var(--font-body);
     padding: 0.4rem 0 0.75rem 0;
@@ -150,8 +151,8 @@ header.markview-header {
     letter-spacing: 0.01em;
 }
 
-/* ── Keyboard Shortcuts Modal ────────────────────────────────────────────── */
-#mv-shortcuts-modal {
+/* ── Modals ──────────────────────────────────────────────────────────────── */
+.mv-modal {
     position: fixed;
     inset: 0;
     background: rgba(0,0,0,0.5);
@@ -161,7 +162,7 @@ header.markview-header {
     align-items: center;
     justify-content: center;
 }
-.mv-shortcuts-box {
+.mv-modal-box {
     background: var(--color-bg-elevated);
     border: 1px solid var(--color-border);
     border-radius: 12px;
@@ -169,26 +170,26 @@ header.markview-header {
     min-width: 320px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.4);
 }
-.mv-shortcuts-box h3 {
+.mv-modal-box h3 {
     margin: 0 0 1.25rem 0;
     font-size: 1.1rem;
     font-family: var(--font-body);
     color: var(--color-text);
 }
-.mv-shortcuts-box table {
+.mv-modal-box table {
     border-collapse: collapse;
     width: 100%;
 }
-.mv-shortcuts-box td {
+.mv-modal-box td {
     padding: 0.4rem 0.75rem 0.4rem 0;
     color: var(--color-text-secondary);
     font-size: 0.9rem;
     border: none;
 }
-.mv-shortcuts-box td:first-child {
+.mv-modal-box td:first-child {
     white-space: nowrap;
 }
-.mv-shortcuts-box kbd {
+.mv-modal-box kbd {
     display: inline-block;
     padding: 0.1em 0.45em;
     font-family: var(--font-mono);
