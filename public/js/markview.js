@@ -1,6 +1,15 @@
-document.addEventListener('DOMContentLoaded', () => {
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+import renderMathInElement from 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.mjs';
+import { getHighlighter, bundledLanguages } from 'https://esm.sh/shiki@1.0.0';
+
+document.addEventListener('DOMContentLoaded', async () => {
+    // UI Elements
     const uploadInput = document.getElementById('markdown-upload');
+    const urlInput = document.getElementById('markdown-url');
+    const loadUrlBtn = document.getElementById('load-url-btn');
     const uploadContainer = document.getElementById('upload-container');
+    const uploadDropzone = document.getElementById('upload-dropzone');
+    
     const viewerContainer = document.getElementById('viewer-container');
     const markdownContent = document.getElementById('markdown-content');
     const tocNav = document.getElementById('toc-nav');
@@ -9,7 +18,70 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleSidebarBtn = document.getElementById('toggle-sidebar');
     const expandSidebarBtn = document.getElementById('expand-sidebar');
 
-    // Sidebar Toggle Logic
+    const headerUploadInput = document.getElementById('header-markdown-upload');
+    const headerUploadContainer = document.getElementById('header-upload-container');
+    const headerLoadUrlBtn = document.getElementById('header-load-url-btn');
+
+    let currentFileName = 'markview-export.pdf';
+    let currentRawMarkdown = '';
+
+    // Initialize Mermaid
+    mermaid.initialize({ startOnLoad: false, theme: 'default' });
+
+    // Initialize Shiki with all supported languages preloaded
+    let highlighter = null;
+    getHighlighter({
+        themes: ['github-light', 'github-dark'],
+        langs: Object.keys(bundledLanguages)
+    }).then(h => {
+        highlighter = h;
+        if (markdownContent.innerHTML.trim() !== '') {
+            applyShikiHighlighting();
+        }
+    }).catch(err => console.error("Failed to load Shiki", err));
+
+    // Marked Config for GFM
+    window.marked.setOptions({
+        gfm: true,
+        breaks: true,
+    });
+
+    const renderer = new window.marked.Renderer();
+    const originalCodeRenderer = renderer.code.bind(renderer);
+    
+    renderer.code = function(code, language, isEscaped) {
+        if (language === 'mermaid') {
+            return `<div class="mermaid">${code}</div>`;
+        }
+        if (language === 'math') {
+            return `\\[${code}\\]`;
+        }
+        return originalCodeRenderer(code, language, isEscaped);
+    };
+
+    window.marked.use({ renderer });
+
+    // Intersect Observer for TOC Active Highlighting
+    const observerOptions = {
+        root: null,
+        rootMargin: '0px 0px -80% 0px',
+        threshold: 1.0
+    };
+    
+    const headingObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const id = entry.target.id;
+                document.querySelectorAll('.toc-nav a').forEach(a => a.classList.remove('active'));
+                const activeLink = document.querySelector(`.toc-nav a[href="#${id}"]`);
+                if (activeLink) {
+                    activeLink.classList.add('active');
+                }
+            }
+        });
+    }, observerOptions);
+
+    // Sidebar Logic
     toggleSidebarBtn.addEventListener('click', () => {
         sidebar.classList.add('collapsed');
         expandSidebarBtn.classList.remove('hidden');
@@ -20,66 +92,102 @@ document.addEventListener('DOMContentLoaded', () => {
         expandSidebarBtn.classList.add('hidden');
     });
 
-    const headerUploadInput = document.getElementById('header-markdown-upload');
-    const headerUploadContainer = document.getElementById('header-upload-container');
+    // Drag and Drop Logic
+    if (uploadDropzone) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadDropzone.addEventListener(eventName, preventDefaults, false);
+        });
 
-    let currentFileName = 'markview-export.pdf';
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
 
-    // Handle File Upload
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadDropzone.addEventListener(eventName, () => uploadDropzone.classList.add('drag-active'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadDropzone.addEventListener(eventName, () => uploadDropzone.classList.remove('drag-active'), false);
+        });
+
+        uploadDropzone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files && files.length > 0) {
+                processFile(files[0]);
+            }
+        }, false);
+    }
+
+    // URL Loading Logic
+    async function loadFromUrl(url) {
+        if (!url) return;
+        try {
+            // Support GitHub normal URLs by converting to raw
+            if (url.includes('github.com') && url.includes('/blob/')) {
+                url = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
+            }
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const text = await response.text();
+            currentFileName = url.split('/').pop().replace(/\.(md|markdown)$/i, '.pdf') || 'markview-export.pdf';
+            renderMarkdown(text);
+            showViewer();
+        } catch (error) {
+            alert(`Failed to load URL: ${error.message}\nMake sure the URL is publicly accessible and allows CORS (like raw.githubusercontent.com).`);
+        }
+    }
+
+    if (loadUrlBtn && urlInput) {
+        loadUrlBtn.addEventListener('click', () => loadFromUrl(urlInput.value));
+        urlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') loadFromUrl(urlInput.value);
+        });
+    }
+
+    if (headerLoadUrlBtn) {
+        headerLoadUrlBtn.addEventListener('click', () => {
+            const url = prompt("Enter Markdown URL (e.g., GitHub raw URL):");
+            if (url) {
+                loadFromUrl(url.trim());
+            }
+        });
+    }
+
+    // Local File Processing
     function processFile(file) {
         if (!file) return;
-
         const reader = new FileReader();
         reader.onload = (event) => {
-            const markdownText = event.target.result;
-            
-            // Set filename based on original file
-            if (file.name) {
-                currentFileName = file.name.replace(/\.(md|markdown)$/i, '.pdf');
-            } else {
-                currentFileName = 'markview-export.pdf';
-            }
-            
-            // Clear existing content to be safe
-            markdownContent.innerHTML = '';
-            tocNav.innerHTML = '';
-            
-            // Reset sidebar state if collapsed
-            sidebar.classList.remove('collapsed');
-            expandSidebarBtn.classList.add('hidden');
-            
-            renderMarkdown(markdownText);
-            
-            // Hide upload, show viewer and header upload button
-            uploadContainer.classList.add('hidden');
-            viewerContainer.classList.remove('hidden');
-            if (headerUploadContainer) {
-                headerUploadContainer.classList.remove('hidden');
-            }
-            
-            // Re-initialize feather icons for new content if needed
-            if (typeof feather !== 'undefined') {
-                feather.replace();
-            }
-
-            // Scroll back to top for both main window and sidebar
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            if (sidebar) {
-                sidebar.scrollTop = 0;
-            }
+            currentFileName = file.name ? file.name.replace(/\.(md|markdown)$/i, '.pdf') : 'markview-export.pdf';
+            renderMarkdown(event.target.result);
+            showViewer();
         };
         reader.readAsText(file);
     }
 
-    uploadInput.addEventListener('change', (e) => {
-        processFile(e.target.files[0]);
-        e.target.value = ''; // Reset input
-    });
+    function showViewer() {
+        uploadContainer.classList.add('hidden');
+        viewerContainer.classList.remove('hidden');
+        if (headerUploadContainer) {
+            headerUploadContainer.classList.remove('hidden');
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        if (sidebar) sidebar.scrollTop = 0;
+    }
+
+    if (uploadInput) {
+        uploadInput.addEventListener('change', (e) => {
+            processFile(e.target.files[0]);
+            e.target.value = '';
+        });
+    }
     
     if (headerUploadInput) {
         headerUploadInput.addEventListener('change', (e) => {
             processFile(e.target.files[0]);
-            e.target.value = ''; // Reset input
+            e.target.value = '';
         });
     }
 
@@ -91,16 +199,31 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Markdown Rendering Pipeline
     function renderMarkdown(markdown) {
-        // Parse markdown to HTML
-        let rawHtml = marked.parse(markdown);
+        currentRawMarkdown = markdown;
+        markdownContent.innerHTML = '';
+        tocNav.innerHTML = '';
+        sidebar.classList.remove('collapsed');
+        expandSidebarBtn.classList.add('hidden');
+
+        // Pre-process math blocks that might not be caught by marked
+        let processedMarkdown = markdown.replace(/\$\$(.*?)\$\$/gs, (_, math) => `\\[${math}\\]`);
+        processedMarkdown = processedMarkdown.replace(/(?<!\$)\$([^$\n]+?)\$(?!\$)/g, (_, math) => `\\(${math}\\)`);
+
+        let rawHtml = window.marked.parse(processedMarkdown);
         
-        // Sanitize
-        let safeHtml = DOMPurify.sanitize(rawHtml);
+        // DOMPurify Sanitization - configure to allow MathML and SVGs safely
+        const sanitizeConfig = {
+            ADD_TAGS: ['math', 'mi', 'mn', 'mo', 'ms', 'mspace', 'mtext', 'merror', 'mfrac', 'mpadded', 'mphantom', 'mroot', 'mrow', 'msqrt', 'mstyle', 'mmultiscripts', 'mover', 'mprescripts', 'msub', 'msubsup', 'msup', 'munder', 'munderover', 'none', 'semantics', 'annotation', 'annotation-xml', 'svg', 'path', 'g', 'circle', 'line', 'text', 'polygon', 'rect'],
+            ADD_ATTR: ['display', 'xmlns', 'mathvariant', 'mathcolor', 'mathbackground', 'mathsize', 'dir', 'viewBox', 'd', 'fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'transform', 'class', 'id', 'x', 'y', 'width', 'height', 'r', 'cx', 'cy'],
+        };
+        
+        const safeHtml = window.DOMPurify.sanitize(rawHtml, sanitizeConfig);
         
         markdownContent.innerHTML = safeHtml;
 
-        // Remove existing Table of Contents from main content if present
+        // Strip TOC if generated by markdown
         const mainHeadings = Array.from(markdownContent.querySelectorAll('h1, h2, h3, h4, h5, h6'));
         const tocHeadingIndex = mainHeadings.findIndex(h => {
             const text = h.textContent.trim().toLowerCase();
@@ -114,22 +237,137 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             node.remove();
         }
-        
-        // Apply syntax highlighting to code blocks
-        if (typeof hljs !== 'undefined') {
-            markdownContent.querySelectorAll('pre code').forEach((block) => {
-                try {
-                    hljs.highlightElement(block);
-                } catch (err) {
-                    console.error("Syntax highlighting error:", err);
-                }
-            });
+
+        buildTOC();
+
+        // 1. Render Math
+        renderMathInElement(markdownContent, {
+            delimiters: [
+                {left: '$$', right: '$$', display: true},
+                {left: '\\[', right: '\\]', display: true},
+                {left: '$', right: '$', display: false},
+                {left: '\\(', right: '\\)', display: false}
+            ],
+            throwOnError: false
+        });
+
+        // 2. Render Mermaid
+        const mermaidNodes = markdownContent.querySelectorAll('.mermaid');
+        if (mermaidNodes.length > 0) {
+            try {
+                // Ensure nodes have unique IDs for mermaid
+                mermaidNodes.forEach((node, i) => {
+                    const id = `mermaid-${Date.now()}-${i}`;
+                    node.id = id;
+                });
+                mermaid.run({ nodes: Array.from(mermaidNodes) }).catch(e => console.error("Mermaid error", e));
+            } catch(e) {
+                console.error("Mermaid sync error", e);
+            }
         }
 
-        // Add Copy Code Buttons
-        markdownContent.querySelectorAll('pre').forEach(block => {
-            if (block.querySelector('.copy-code-btn') || !block.querySelector('code')) return;
+        // 3. Fallback Highlighting: PrismJS
+        if (window.Prism) {
+            window.Prism.highlightAllUnder(markdownContent);
+        }
+        
+        // 4. Add Copy Buttons
+        addCopyButtons();
 
+        // 5. High-fidelity Highlighting: Shiki
+        applyShikiHighlighting();
+        
+        if (typeof feather !== 'undefined') feather.replace();
+    }
+
+    function applyShikiHighlighting() {
+        if (!highlighter) return;
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const theme = isDark ? 'github-dark' : 'github-light';
+
+        markdownContent.querySelectorAll('pre').forEach((pre) => {
+            // Ignore if it's already highlighted by shiki in this theme
+            if (pre.classList.contains('shiki') && pre.getAttribute('data-theme-applied') === theme) return;
+            
+            let rawCode = '';
+            let lang = 'text';
+            
+            if (pre.classList.contains('shiki')) {
+                rawCode = pre.getAttribute('data-raw-code');
+                lang = pre.getAttribute('data-lang');
+            } else {
+                const code = pre.querySelector('code');
+                if (!code) return;
+                
+                // Temporarily detach copy button so it doesn't get swept into raw code
+                const btn = pre.querySelector('.copy-code-btn');
+                if (btn) btn.remove();
+                
+                rawCode = code.textContent.trimEnd();
+                
+                if (btn) pre.appendChild(btn); // put it back
+                
+                const classMatch = code.className.match(/language-([^\s]+)/);
+                if (classMatch) lang = classMatch[1];
+            }
+            
+            if (!rawCode) return;
+            
+            try {
+                // Resolve common aliases
+                const aliases = {
+                    'js': 'javascript', 'ts': 'typescript', 'py': 'python', 'rb': 'ruby',
+                    'sh': 'bash', 'yml': 'yaml', 'md': 'markdown', 'c++': 'cpp',
+                    'golang': 'go', 'rs': 'rust', 'html': 'html', 'css': 'css'
+                };
+                let canonicalLang = aliases[lang] || lang;
+
+                if (!highlighter.getLoadedLanguages().includes(canonicalLang)) {
+                    // If language is not supported by Shiki at all, do NOT replace Prism fallback.
+                    return; 
+                }
+                
+                const html = highlighter.codeToHtml(rawCode, { lang: canonicalLang, theme });
+                const temp = document.createElement('div');
+                temp.innerHTML = html;
+                const newPre = temp.firstElementChild;
+                
+                newPre.setAttribute('data-raw-code', rawCode);
+                newPre.setAttribute('data-lang', lang);
+                newPre.setAttribute('data-theme-applied', theme);
+                newPre.style.position = 'relative';
+                
+                // Preserve copy button
+                const existingBtn = pre.querySelector('.copy-code-btn');
+                if (existingBtn) {
+                    newPre.appendChild(existingBtn);
+                }
+                
+                pre.replaceWith(newPre);
+            } catch (err) {
+                console.error("Shiki highlighting error:", err);
+            }
+        });
+    }
+
+    // Watch for theme toggles to re-highlight Shiki blocks dynamically
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.attributeName === 'data-theme') {
+                if (highlighter && markdownContent.innerHTML.trim() !== '') {
+                    applyShikiHighlighting();
+                }
+                // also update mermaid theme if possible, but mermaid requires re-render
+                // For simplicity, Mermaid will stay in its initialized theme unless reloaded
+            }
+        });
+    });
+    observer.observe(document.documentElement, { attributes: true });
+
+    function addCopyButtons() {
+        markdownContent.querySelectorAll('pre').forEach(block => {
+            if (block.querySelector('.copy-code-btn')) return;
+            
             const button = document.createElement('button');
             button.className = 'copy-code-btn';
             button.setAttribute('aria-label', 'Copy code');
@@ -137,10 +375,20 @@ document.addEventListener('DOMContentLoaded', () => {
             button.innerHTML = '<i data-feather="copy"></i>';
 
             button.addEventListener('click', () => {
-                const code = block.querySelector('code');
-                if (!code) return;
-
-                const textToCopy = code.textContent.trimEnd();
+                // If Shiki block, we saved raw code in dataset
+                let codeText = block.getAttribute('data-raw-code');
+                
+                if (!codeText) {
+                    const code = block.querySelector('code');
+                    if (code) {
+                        codeText = code.textContent.trimEnd();
+                    } else {
+                        const clone = block.cloneNode(true);
+                        const btn = clone.querySelector('.copy-code-btn');
+                        if (btn) btn.remove();
+                        codeText = clone.textContent.trimEnd();
+                    }
+                }
 
                 const showSuccess = () => {
                     button.innerHTML = '<i data-feather="check"></i>';
@@ -155,12 +403,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 if (navigator.clipboard && window.isSecureContext) {
-                    navigator.clipboard.writeText(textToCopy).then(showSuccess).catch(err => {
+                    navigator.clipboard.writeText(codeText).then(showSuccess).catch(err => {
                         console.error('Failed to copy text: ', err);
                     });
                 } else {
                     const textArea = document.createElement("textarea");
-                    textArea.value = textToCopy;
+                    textArea.value = codeText;
                     textArea.style.position = "fixed";
                     textArea.style.opacity = "0";
                     document.body.appendChild(textArea);
@@ -176,21 +424,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
+            block.style.position = 'relative';
             block.appendChild(button);
         });
-
-        // Re-initialize feather icons if any were in the text (optional) and for copy buttons
-        if (typeof feather !== 'undefined') {
-            feather.replace();
-        }
-
-        buildTOC();
     }
 
     function buildTOC() {
-        // Find all headings inside markdown-content
+        headingObserver.disconnect();
+        
         const headings = markdownContent.querySelectorAll('h1, h2, h3, h4, h5, h6');
-        tocNav.innerHTML = ''; // Clear existing TOC
+        tocNav.innerHTML = ''; 
         
         if (headings.length === 0) {
             tocNav.innerHTML = '<p class="no-toc">No headings found.</p>';
@@ -201,10 +444,11 @@ document.addEventListener('DOMContentLoaded', () => {
         tocNav.appendChild(ul);
 
         headings.forEach((heading, index) => {
-            // Ensure heading has an ID
             if (!heading.id) {
                 heading.id = heading.textContent.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `heading-${index}`;
             }
+            
+            headingObserver.observe(heading);
 
             const li = document.createElement('li');
             li.className = `toc-${heading.tagName.toLowerCase()}`;
@@ -213,11 +457,9 @@ document.addEventListener('DOMContentLoaded', () => {
             a.href = `#${heading.id}`;
             a.textContent = heading.textContent;
             
-            // Smooth scroll listener
             a.addEventListener('click', (e) => {
                 e.preventDefault();
                 heading.scrollIntoView({ behavior: 'smooth' });
-                // Update URL hash without jumping
                 history.pushState(null, null, `#${heading.id}`);
             });
 

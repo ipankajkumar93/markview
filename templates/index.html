@@ -44,13 +44,13 @@
     <!-- DOMPurify for sanitizing HTML -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     
-    <!-- Highlight.js for syntax highlighting -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/base16/dracula.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/ini.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/dockerfile.min.js"></script>
+    <!-- KaTeX CSS for Math -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    
+    <!-- PrismJS for instant fallback syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" id="prism-theme">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
 
     <script>
         (function () {
@@ -78,13 +78,17 @@
             
             <div class="header-center hidden" id="header-upload-container">
                 <input type="file" id="header-markdown-upload" accept=".md,.markdown,text/markdown" class="hidden" />
-                <label for="header-markdown-upload" class="header-action-btn">
+                <label for="header-markdown-upload" class="header-action-btn" title="Upload Local File">
                     <i data-feather="upload"></i>
-                    <span>Upload New File</span>
+                    <span>Upload</span>
                 </label>
-                <button class="header-action-btn" id="export-pdf-btn">
+                <button class="header-action-btn" id="header-load-url-btn" title="Load from URL">
+                    <i data-feather="link"></i>
+                    <span>URL</span>
+                </button>
+                <button class="header-action-btn" id="export-pdf-btn" title="Export as PDF">
                     <i data-feather="download"></i>
-                    <span>Export PDF</span>
+                    <span>PDF</span>
                 </button>
             </div>
             
@@ -98,12 +102,19 @@
 
     <main class="markview-main">
         <div id="upload-container" class="upload-container">
-            <div class="upload-box">
+            <div class="upload-box" id="upload-dropzone">
                 <i data-feather="upload-cloud" class="upload-icon"></i>
                 <h2>Upload Markdown File</h2>
-                <p>Select a markdown file to view it beautifully.</p>
-                <input type="file" id="markdown-upload" accept=".md,.markdown,text/markdown" />
-                <label for="markdown-upload" class="upload-btn">Choose File</label>
+                <p>Drag & drop, select a local file, or paste a URL.</p>
+                <div class="upload-actions">
+                    <input type="file" id="markdown-upload" accept=".md,.markdown,text/markdown" class="hidden" />
+                    <label for="markdown-upload" class="upload-btn">Choose File</label>
+                    <span class="or-divider">or</span>
+                    <div class="url-input-group">
+                        <input type="url" id="markdown-url" placeholder="e.g. https://raw.githubusercontent.com/..." />
+                        <button id="load-url-btn" class="upload-btn url-btn">Load URL</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -149,6 +160,6 @@
     </button>
 
     <script src="{{ get_url(path='js/main.js', cachebust=true) | safe }}"></script>
-    <script src="{{ get_url(path='js/markview.js', cachebust=true) | safe }}"></script>
+    <script type="module" src="{{ get_url(path='js/markview.js', cachebust=true) | safe }}"></script>
 </body>
 </html>
