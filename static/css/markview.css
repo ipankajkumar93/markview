@@ -1,5 +1,19 @@
 /* Markview Specific Styles */
 
+/* The global main.css applies `animation: fadeInUp` to every <main> element.
+   On markview this looks like a jerk/stutter — disable all animation so the
+   page renders instantly with no movement or opacity flash. */
+main.markview-main {
+    animation: none;
+}
+
+/* The global html rule sets scroll-behavior: smooth which causes the browser to
+   smooth-scroll back to the last scroll position on reload (scrollbar mid-page).
+   Override to instant so the page always opens at the top. */
+html:has(main.markview-main) {
+    scroll-behavior: auto;
+}
+
 header.markview-header {
     max-width: 100% !important;
     width: 100%;
@@ -54,6 +68,7 @@ header.markview-header {
 }
 
 .header-action-btn i, .header-action-btn svg {
+    display: inline-block;
     width: 16px;
     height: 16px;
 }
@@ -95,12 +110,12 @@ header.markview-header {
 
 .upload-box {
     text-align: center;
-    border: 2px dashed var(--border);
+    border: 2px dashed var(--color-border);
     border-radius: 12px;
     padding: 4rem;
     background-color: var(--color-bg-elevated);
     box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    transition: border-color 0.3s ease;
+    transition: border-color 0.3s ease, background-color 0.3s ease, transform 0.3s ease;
 }
 
 .upload-box:hover {
@@ -108,6 +123,7 @@ header.markview-header {
 }
 
 .upload-icon {
+    display: inline-block;
     width: 64px;
     height: 64px;
     color: var(--color-text-muted);
@@ -133,9 +149,14 @@ header.markview-header {
     padding: 0.75rem 1.5rem;
     background-color: var(--color-accent);
     color: var(--color-bg);
+    border: none;
     border-radius: 6px;
     cursor: pointer;
     font-weight: 500;
+    font-family: inherit;
+    font-size: 1rem;
+    line-height: inherit;
+    text-align: center;
     transition: background-color 0.2s ease, transform 0.1s ease;
 }
 
@@ -359,6 +380,10 @@ header.markview-header {
     border-color: var(--color-accent);
     background-color: var(--color-accent-subtle);
     transform: scale(1.02);
+}
+
+.upload-box.drag-active * {
+    pointer-events: none;
 }
 
 /* URL Input Group */

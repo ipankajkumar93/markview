@@ -1,8 +1,43 @@
-import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-import renderMathInElement from 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.mjs';
-import { getHighlighter, bundledLanguages } from 'https://esm.sh/shiki@1.0.0';
+// Heavy dependencies will be loaded dynamically
+let mermaid = null;
+let renderMathInElement = null;
+let getHighlighter = null;
+let bundledLanguages = null;
+let highlighter = null;
 
-document.addEventListener('DOMContentLoaded', async () => {
+let preloadPromise = null;
+function preloadHeavyDependencies() {
+    if (preloadPromise) return preloadPromise;
+    
+    preloadPromise = Promise.all([
+        import('https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs'),
+        import('https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.mjs'),
+        import('https://esm.sh/shiki@1.0.0')
+    ]).then(async ([mermaidMod, katexMod, shikiMod]) => {
+        mermaid = mermaidMod.default;
+        renderMathInElement = katexMod.default;
+        getHighlighter = shikiMod.getHighlighter;
+        bundledLanguages = shikiMod.bundledLanguages;
+
+        mermaid.initialize({ startOnLoad: false, theme: 'default' });
+        
+        highlighter = await getHighlighter({
+            themes: ['github-light', 'github-dark'],
+            langs: Object.keys(bundledLanguages)
+        });
+        
+        // If markdown is already rendered, apply Shiki now
+        if (document.getElementById('markdown-content').innerHTML.trim() !== '') {
+            applyShikiHighlighting();
+        }
+    }).catch(err => console.error("Failed to preload dependencies", err));
+    
+    return preloadPromise;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Start fetching heavy resources in background immediately
+    preloadHeavyDependencies();
     // UI Elements
     const uploadInput = document.getElementById('markdown-upload');
     const urlInput = document.getElementById('markdown-url');
@@ -24,21 +59,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let currentFileName = 'markview-export.pdf';
     let currentRawMarkdown = '';
-
-    // Initialize Mermaid
-    mermaid.initialize({ startOnLoad: false, theme: 'default' });
-
-    // Initialize Shiki with all supported languages preloaded
-    let highlighter = null;
-    getHighlighter({
-        themes: ['github-light', 'github-dark'],
-        langs: Object.keys(bundledLanguages)
-    }).then(h => {
-        highlighter = h;
-        if (markdownContent.innerHTML.trim() !== '') {
-            applyShikiHighlighting();
-        }
-    }).catch(err => console.error("Failed to load Shiki", err));
 
     // Marked Config for GFM
     window.marked.setOptions({
@@ -200,7 +220,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Markdown Rendering Pipeline
-    function renderMarkdown(markdown) {
+    async function renderMarkdown(markdown) {
         currentRawMarkdown = markdown;
         markdownContent.innerHTML = '';
         tocNav.innerHTML = '';
@@ -239,21 +259,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         buildTOC();
+        
+        // 1. Fallback Highlighting: PrismJS (Instant)
+        if (window.Prism) {
+            window.Prism.highlightAllUnder(markdownContent);
+        }
+        
+        // 2. Add Copy Buttons
+        addCopyButtons();
+        if (typeof feather !== 'undefined') feather.replace();
 
-        // 1. Render Math
-        renderMathInElement(markdownContent, {
-            delimiters: [
-                {left: '$$', right: '$$', display: true},
-                {left: '\\[', right: '\\]', display: true},
-                {left: '$', right: '$', display: false},
-                {left: '\\(', right: '\\)', display: false}
-            ],
-            throwOnError: false
-        });
+        // 3. Wait for heavy dependencies to finish loading before rendering Math/Mermaid/Shiki
+        await preloadHeavyDependencies();
 
-        // 2. Render Mermaid
+        // 4. Render Math
+        if (renderMathInElement) {
+            renderMathInElement(markdownContent, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '\\[', right: '\\]', display: true},
+                    {left: '$', right: '$', display: false},
+                    {left: '\\(', right: '\\)', display: false}
+                ],
+                throwOnError: false
+            });
+        }
+
+        // 5. Render Mermaid
         const mermaidNodes = markdownContent.querySelectorAll('.mermaid');
-        if (mermaidNodes.length > 0) {
+        if (mermaidNodes.length > 0 && mermaid) {
             try {
                 // Ensure nodes have unique IDs for mermaid
                 mermaidNodes.forEach((node, i) => {
@@ -266,18 +300,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // 3. Fallback Highlighting: PrismJS
-        if (window.Prism) {
-            window.Prism.highlightAllUnder(markdownContent);
-        }
-        
-        // 4. Add Copy Buttons
-        addCopyButtons();
-
-        // 5. High-fidelity Highlighting: Shiki
+        // 6. High-fidelity Highlighting: Shiki
         applyShikiHighlighting();
-        
-        if (typeof feather !== 'undefined') feather.replace();
     }
 
     function applyShikiHighlighting() {

@@ -35,6 +35,10 @@
     <meta name="twitter:creator" content="@{{ config.extra.twitter | split(pat='/') | last }}">
     {% endif %}
     
+    <!-- Preload primary fonts to prevent FOUT layout shift -->
+    <link rel="preload" href="{{ get_url(path="fonts/geist_5.woff2") | safe }}" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="{{ get_url(path="fonts/geist_10.woff2") | safe }}" as="font" type="font/woff2" crossorigin>
+    
     <link rel="stylesheet" href="{{ get_url(path="styles/fonts.css", trailing_slash=false, cachebust=true) | safe }}">
     <link rel="stylesheet" href="{{ get_url(path="styles/main.css", trailing_slash=false, cachebust=true) | safe }}">
     <link rel="stylesheet" href="{{ get_url(path="css/markview.css", trailing_slash=false, cachebust=true) | safe }}">
@@ -54,6 +58,11 @@
 
     <script>
         (function () {
+            // Always start at the top of the page on load/reload
+            if ('scrollRestoration' in history) {
+                history.scrollRestoration = 'manual';
+            }
+
             let stored = localStorage.getItem('theme');
             if (stored !== 'light' && stored !== 'dark') {
                 stored = 'dark';
