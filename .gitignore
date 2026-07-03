@@ -22,3 +22,22 @@ target
 
 # Local OG Image generator assets
 static/images/profile.jpg
+
+# Zola Specific
+public/
+.sass-cache/
+.zola-cache/
+
+# Node (if used for front-end tooling)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
