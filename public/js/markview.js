@@ -281,6 +281,28 @@ document.addEventListener('DOMContentLoaded', () => {
         modal = document.createElement('div');
         modal.id = 'mv-url-modal';
         modal.className = 'mv-modal';
+
+        let recentHtml = '';
+        const list = getRecentFiles();
+        if (list.length > 0) {
+            recentHtml = '<div class="mv-recent-files" style="display:block; margin-top:1.5rem; max-width:100%;">' +
+                '<p class="mv-recent-label">Recently viewed</p>' +
+                list.map(f => {
+                    const domain = (() => { try { return new URL(f.url).hostname; } catch { return ''; } })();
+                    const age = formatAge(f.ts);
+                    return '<div class="mv-recent-item" data-url="' + f.url + '">' +
+                        '<div class="mv-recent-content" data-url="' + f.url + '">' +
+                        '<span class="mv-recent-icon">📄</span>' +
+                        '<span class="mv-recent-info">' +
+                        '<span class="mv-recent-title">' + (f.title || f.url.split('/').pop() || 'Document') + '</span>' +
+                        '<span class="mv-recent-meta">' + domain + (age ? ' · ' + age : '') + '</span>' +
+                        '</span></div>' +
+                        '<button class="mv-recent-delete" data-url="' + f.url + '" title="Remove from history" aria-label="Remove from history"><i data-feather="x"></i></button>' +
+                        '</div>';
+                }).join('') +
+                '</div>';
+        }
+
         modal.innerHTML = '<div class="mv-modal-box">' +
             '<h3>Load Markdown from URL</h3>' +
             '<p style="margin-bottom:1.5rem; color:var(--color-text-muted); font-size: 0.9rem;">Enter a public URL, e.g., a GitHub raw URL.</p>' +
@@ -288,10 +310,13 @@ document.addEventListener('DOMContentLoaded', () => {
             '<input type="url" id="mv-modal-url-input" placeholder="https://..." style="flex-grow:1; padding: 0.75rem 1rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body);" />' +
             '<button id="mv-modal-url-btn" class="upload-btn" style="padding: 0.5rem 1.25rem;">Load</button>' +
             '</div>' +
+            recentHtml +
             '</div>';
         
         modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
         document.body.appendChild(modal);
+        
+        if (typeof feather !== 'undefined') feather.replace();
 
         const input = document.getElementById('mv-modal-url-input');
         const btn = document.getElementById('mv-modal-url-btn');
@@ -308,6 +333,22 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.addEventListener('click', submit);
         input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') submit();
+        });
+
+        modal.querySelectorAll('.mv-recent-content').forEach(btn => {
+            btn.addEventListener('click', () => {
+                modal.remove();
+                loadFromUrl(btn.dataset.url);
+            });
+        });
+        
+        modal.querySelectorAll('.mv-recent-delete').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                removeRecentFile(btn.dataset.url);
+                modal.remove();
+                showUrlModal(); // re-render
+            });
         });
     }
 
