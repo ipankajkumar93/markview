@@ -2,5 +2,7 @@ User-agent: *
 Allow: /
 Disallow: /search_index.en.js
 Disallow: /elasticlunr.min.js
+# Prevent crawling of infinite ?url= parameter space
+Disallow: /*?url=
 
 Sitemap: https://markview.pankajkumar.xyz/sitemap.xml

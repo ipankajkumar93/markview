@@ -16,25 +16,40 @@ if (themeToggle) {
     if (activeTheme === 'dark') {
         themeToggle.innerHTML = '<i data-feather="sun"></i>';
     }
-    // Sync aria-pressed to the actual theme on load (not hardcoded in HTML)
     themeToggle.setAttribute('aria-pressed', activeTheme === 'dark' ? 'true' : 'false');
 
     themeToggle.addEventListener('click', function () {
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        const theme = isDark ? 'light' : 'dark';
+        const theme  = isDark ? 'light' : 'dark';
 
-        document.body.classList.add('theme-transition');
-        themeToggle.innerHTML = isDark
-            ? '<i data-feather="moon"></i>'
-            : '<i data-feather="sun"></i>';
-        themeToggle.setAttribute('aria-pressed', isDark ? 'false' : 'true');
+        // Phase 1: fade out the entire viewport (GPU compositor layer — zero reflow)
+        document.body.style.transition = 'opacity 80ms ease';
+        document.body.style.opacity    = '0';
 
-        replaceFeather();
-        document.documentElement.setAttribute('data-theme', theme);
-        document.documentElement.style.colorScheme = theme;
-        localStorage.setItem('theme', theme);
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                // Phase 2: flip everything while viewport is invisible
+                document.body.classList.add('theme-transition'); // suppresses sub-transitions
+                document.documentElement.setAttribute('data-theme', theme);
+                document.documentElement.style.colorScheme = theme;
+                localStorage.setItem('theme', theme);
+                themeToggle.innerHTML = isDark
+                    ? '<i data-feather="moon"></i>'
+                    : '<i data-feather="sun"></i>';
+                themeToggle.setAttribute('aria-pressed', isDark ? 'false' : 'true');
+                replaceFeather();
 
-        setTimeout(() => document.body.classList.remove('theme-transition'), 500);
+                // Phase 3: fade back in — user sees the finished, fully-updated page
+                document.body.style.transition = 'opacity 120ms ease';
+                document.body.style.opacity    = '1';
+
+                setTimeout(() => {
+                    document.body.classList.remove('theme-transition');
+                    document.body.style.transition = '';
+                    document.body.style.opacity    = '';
+                }, 200);
+            });
+        });
     });
 }
 
@@ -110,11 +125,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (backToTop) {
         // RAF-throttled scroll listener — avoids layout thrashing
+        // Only visible in viewer mode (not on the landing/upload screen)
         let scrollTicking = false;
         window.addEventListener('scroll', function () {
             if (!scrollTicking) {
                 requestAnimationFrame(function () {
-                    backToTop.classList.toggle('visible', window.scrollY > 100);
+                    const viewerActive = document.getElementById('viewer-container') &&
+                        !document.getElementById('viewer-container').classList.contains('hidden');
+                    backToTop.classList.toggle('visible', window.scrollY > 100 && viewerActive);
                     scrollTicking = false;
                 });
                 scrollTicking = true;
@@ -166,24 +184,12 @@ document.addEventListener('DOMContentLoaded', function () {
             };
 
             if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(textToCopy).then(showSuccess).catch(err => {
-                    console.error('Failed to copy text: ', err);
+                navigator.clipboard.writeText(textToCopy).then(showSuccess).catch(() => {
+                    console.warn('Clipboard write failed — user may need to grant permission.');
                 });
             } else {
-                const textArea = document.createElement("textarea");
-                textArea.value = textToCopy;
-                textArea.style.position = "fixed";
-                textArea.style.opacity = "0";
-                document.body.appendChild(textArea);
-                textArea.focus();
-                textArea.select();
-                try {
-                    document.execCommand('copy');
-                    showSuccess();
-                } catch (err) {
-                    console.error('Fallback copy failed', err);
-                }
-                document.body.removeChild(textArea);
+                // Non-secure context (HTTP): clipboard API unavailable
+                console.warn('Clipboard API unavailable in non-secure context.');
             }
         });
 

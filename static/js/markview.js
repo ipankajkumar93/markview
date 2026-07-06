@@ -35,19 +35,19 @@ function preloadHeavyDependencies() {
             themes: ['github-light', 'github-dark'],
             langs: EAGER_LANGS,
         });
-        
-        // If markdown is already rendered, apply Shiki now
-        if (document.getElementById('markdown-content').innerHTML.trim() !== '') {
-            applyShikiHighlighting();
-        }
+        // Note: applyShikiHighlighting() is called by renderMarkdown() after this
+        // promise resolves — no need to call it here.
     }).catch(err => console.error("Failed to preload dependencies", err));
     
     return preloadPromise;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Start fetching heavy resources in background immediately
-    preloadHeavyDependencies();
+    // Only preload heavy deps eagerly when we know rendering will happen
+    // (i.e. a ?url= param is present). Otherwise load on first file open.
+    if (new URLSearchParams(window.location.search).has('url')) {
+        preloadHeavyDependencies();
+    }
     // UI Elements
     const uploadInput = document.getElementById('markdown-upload');
     const urlInput = document.getElementById('markdown-url');
@@ -70,6 +70,33 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentFileName = 'markview-export.pdf';
     let currentRawMarkdown = '';
     let currentRawMermaidSources = []; // raw source for mermaid theme re-render
+
+    // ── Toast Notification System ────────────────────────────────────────────
+    (function initToastContainer() {
+        if (!document.getElementById('mv-toast-container')) {
+            const c = document.createElement('div');
+            c.id = 'mv-toast-container';
+            c.className = 'mv-toast-container';
+            document.body.appendChild(c);
+        }
+    })();
+
+    function showToast(title, message, type = 'error', duration = 5000) {
+        const icons = { error: '⚠️', success: '✅', info: 'ℹ️', warning: '💡' };
+        const container = document.getElementById('mv-toast-container');
+        const toast = document.createElement('div');
+        toast.className = `mv-toast mv-toast-${type}`;
+        toast.innerHTML =
+            `<span class="mv-toast-icon">${icons[type] || 'ℹ️'}</span>` +
+            `<div class="mv-toast-body"><div class="mv-toast-title">${title}</div>` +
+            `<div class="mv-toast-msg">${message}</div></div>`;
+        container.appendChild(toast);
+        requestAnimationFrame(() => toast.classList.add('visible'));
+        setTimeout(() => {
+            toast.classList.remove('visible');
+            toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+        }, duration);
+    }
 
     // ── URL ?url= Parameter (“shareable links”) ─────────────────────────────
     // e.g. markview.pankajkumar.xyz/?url=https://raw.githubusercontent.com/...
@@ -98,36 +125,74 @@ document.addEventListener('DOMContentLoaded', () => {
         renderRecentFiles();
     }
 
+    // ── Recent Files — shared DOM builder (XSS-safe, deduplicates logic) ────
+    function buildRecentItemsInto(container, onLoad, onDelete) {
+        const list = getRecentFiles();
+        container.innerHTML = '';
+        if (list.length === 0) return false;
+
+        const label = document.createElement('p');
+        label.className = 'mv-recent-label';
+        label.textContent = 'Recently viewed';
+        container.appendChild(label);
+
+        list.forEach(f => {
+            const domain = (() => { try { return new URL(f.url).hostname; } catch { return ''; } })();
+            const age    = formatAge(f.ts);
+            const isLocal = !f.url.startsWith('http');
+
+            const item = document.createElement('div');
+            item.className = 'mv-recent-item';
+
+            const content = document.createElement('div');
+            content.className = 'mv-recent-content';
+            content.addEventListener('click', () => onLoad(f.url));
+
+            const icon = document.createElement('span');
+            icon.className = 'mv-recent-icon';
+            icon.textContent = isLocal ? '\uD83D\uDCBB' : '\uD83D\uDCC4';
+            icon.title = isLocal ? 'Local file — re-upload to view' : '';
+
+            const info = document.createElement('span');
+            info.className = 'mv-recent-info';
+
+            const title = document.createElement('span');
+            title.className = 'mv-recent-title';
+            title.textContent = f.title || f.url.split('/').pop() || 'Document';
+
+            const meta = document.createElement('span');
+            meta.className = 'mv-recent-meta';
+            meta.textContent = (isLocal ? 'local file' : domain) + (age ? ' \u00B7 ' + age : '');
+
+            info.appendChild(title);
+            info.appendChild(meta);
+            content.appendChild(icon);
+            content.appendChild(info);
+
+            const del = document.createElement('button');
+            del.className = 'mv-recent-delete';
+            del.title = 'Remove from history';
+            del.setAttribute('aria-label', 'Remove from history');
+            del.innerHTML = '<i data-feather="x"></i>';
+            del.addEventListener('click', e => { e.stopPropagation(); onDelete(f.url); });
+
+            item.appendChild(content);
+            item.appendChild(del);
+            container.appendChild(item);
+        });
+        if (typeof feather !== 'undefined') feather.replace();
+        return true;
+    }
+
     function renderRecentFiles() {
         const container = document.getElementById('mv-recent-files');
         if (!container) return;
-        const list = getRecentFiles();
-        if (list.length === 0) { container.classList.add('hidden'); return; }
-        container.classList.remove('hidden');
-        container.innerHTML = '<p class="mv-recent-label">Recently viewed</p>' +
-            list.map(f => {
-                const domain = (() => { try { return new URL(f.url).hostname; } catch { return ''; } })();
-                const age = formatAge(f.ts);
-                return '<div class="mv-recent-item" data-url="' + f.url + '">' +
-                    '<div class="mv-recent-content" data-url="' + f.url + '">' +
-                    '<span class="mv-recent-icon">📄</span>' +
-                    '<span class="mv-recent-info">' +
-                    '<span class="mv-recent-title">' + (f.title || f.url.split('/').pop() || 'Document') + '</span>' +
-                    '<span class="mv-recent-meta">' + domain + (age ? ' · ' + age : '') + '</span>' +
-                    '</span></div>' +
-                    '<button class="mv-recent-delete" data-url="' + f.url + '" title="Remove from history" aria-label="Remove from history"><i data-feather="x"></i></button>' +
-                    '</div>';
-            }).join('');
-        container.querySelectorAll('.mv-recent-content').forEach(btn => {
-            btn.addEventListener('click', () => loadFromUrl(btn.dataset.url));
-        });
-        container.querySelectorAll('.mv-recent-delete').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                removeRecentFile(btn.dataset.url);
-            });
-        });
-        if (typeof feather !== 'undefined') feather.replace();
+        const hasItems = buildRecentItemsInto(
+            container,
+            url => loadFromUrl(url),
+            url => removeRecentFile(url)
+        );
+        container.classList.toggle('hidden', !hasItems);
     }
 
     function formatAge(ts) {
@@ -171,10 +236,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Intersect Observer for TOC Active Highlighting
+    // threshold:0 fires as soon as any part of heading enters the zone.
+    // threshold:1.0 would never fire for tall headings on mobile.
     const observerOptions = {
         root: null,
-        rootMargin: '0px 0px -80% 0px',
-        threshold: 1.0
+        rootMargin: '-10% 0px -75% 0px',
+        threshold: 0
     };
     
     const headingObserver = new IntersectionObserver((entries) => {
@@ -255,10 +322,15 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             hideLoadingState();
             const isCors = error.message.includes('Failed to fetch') || error.message.includes('NetworkError');
-            const msg = isCors
-                ? 'CORS blocked: The server does not allow cross-origin requests.\n\nTry a GitHub raw URL (raw.githubusercontent.com) or any CORS-friendly host.'
-                : 'Failed to load URL: ' + error.message;
-            alert(msg);
+            if (isCors) {
+                showToast(
+                    'CORS Blocked',
+                    'The server does not allow cross-origin requests. Try a GitHub raw URL (raw.githubusercontent.com) or any CORS-friendly host.',
+                    'error'
+                );
+            } else {
+                showToast('Load Failed', 'Could not load URL: ' + error.message, 'error');
+            }
         }
     }
 
@@ -278,78 +350,62 @@ document.addEventListener('DOMContentLoaded', () => {
     function showUrlModal() {
         let modal = document.getElementById('mv-url-modal');
         if (modal) { modal.remove(); return; }
+
         modal = document.createElement('div');
         modal.id = 'mv-url-modal';
         modal.className = 'mv-modal';
 
-        let recentHtml = '';
-        const list = getRecentFiles();
-        if (list.length > 0) {
-            recentHtml = '<div class="mv-recent-files" style="display:block; margin-top:1.5rem; max-width:100%;">' +
-                '<p class="mv-recent-label">Recently viewed</p>' +
-                list.map(f => {
-                    const domain = (() => { try { return new URL(f.url).hostname; } catch { return ''; } })();
-                    const age = formatAge(f.ts);
-                    return '<div class="mv-recent-item" data-url="' + f.url + '">' +
-                        '<div class="mv-recent-content" data-url="' + f.url + '">' +
-                        '<span class="mv-recent-icon">📄</span>' +
-                        '<span class="mv-recent-info">' +
-                        '<span class="mv-recent-title">' + (f.title || f.url.split('/').pop() || 'Document') + '</span>' +
-                        '<span class="mv-recent-meta">' + domain + (age ? ' · ' + age : '') + '</span>' +
-                        '</span></div>' +
-                        '<button class="mv-recent-delete" data-url="' + f.url + '" title="Remove from history" aria-label="Remove from history"><i data-feather="x"></i></button>' +
-                        '</div>';
-                }).join('') +
-                '</div>';
-        }
+        const box = document.createElement('div');
+        box.className = 'mv-modal-box';
 
-        modal.innerHTML = '<div class="mv-modal-box">' +
-            '<h3>Load Markdown from URL</h3>' +
-            '<p style="margin-bottom:1.5rem; color:var(--color-text-muted); font-size: 0.9rem;">Enter a public URL, e.g., a GitHub raw URL.</p>' +
-            '<div class="url-input-group" style="max-width:100%; display:flex; gap: 0.5rem;">' +
-            '<input type="url" id="mv-modal-url-input" placeholder="https://..." style="flex-grow:1; padding: 0.75rem 1rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body);" />' +
-            '<button id="mv-modal-url-btn" class="upload-btn" style="padding: 0.5rem 1.25rem;">Load</button>' +
-            '</div>' +
-            recentHtml +
-            '</div>';
-        
-        modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+        const h3 = document.createElement('h3');
+        h3.textContent = 'Load Markdown from URL';
+        box.appendChild(h3);
+
+        const desc = document.createElement('p');
+        desc.style.cssText = 'margin-bottom:1.5rem;color:var(--color-text-muted);font-size:0.9rem';
+        desc.textContent = 'Enter a public URL, e.g., a GitHub raw URL.';
+        box.appendChild(desc);
+
+        const inputGroup = document.createElement('div');
+        inputGroup.className = 'url-input-group';
+        inputGroup.style.cssText = 'max-width:100%;display:flex;gap:0.5rem';
+
+        const input = document.createElement('input');
+        input.type = 'url';
+        input.id = 'mv-modal-url-input';
+        input.placeholder = 'https://...';
+        input.style.cssText = 'flex-grow:1;padding:0.75rem 1rem;border:1px solid var(--color-border);border-radius:6px;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body)';
+
+        const loadBtn = document.createElement('button');
+        loadBtn.id = 'mv-modal-url-btn';
+        loadBtn.className = 'upload-btn';
+        loadBtn.style.cssText = 'padding:0.5rem 1.25rem';
+        loadBtn.textContent = 'Load';
+
+        inputGroup.appendChild(input);
+        inputGroup.appendChild(loadBtn);
+        box.appendChild(inputGroup);
+
+        // Recent files via shared builder
+        const recentSection = document.createElement('div');
+        recentSection.className = 'mv-recent-files';
+        recentSection.style.cssText = 'display:block;margin-top:1.5rem;max-width:100%';
+        const hasRecent = buildRecentItemsInto(
+            recentSection,
+            url => { modal.remove(); loadFromUrl(url); },
+            url => { removeRecentFile(url); modal.remove(); showUrlModal(); }
+        );
+        if (hasRecent) box.appendChild(recentSection);
+
+        modal.appendChild(box);
+        modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
         document.body.appendChild(modal);
-        
-        if (typeof feather !== 'undefined') feather.replace();
 
-        const input = document.getElementById('mv-modal-url-input');
-        const btn = document.getElementById('mv-modal-url-btn');
         input.focus();
-
-        const submit = () => {
-            const url = input.value.trim();
-            if (url) {
-                modal.remove();
-                loadFromUrl(url);
-            }
-        };
-
-        btn.addEventListener('click', submit);
-        input.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') submit();
-        });
-
-        modal.querySelectorAll('.mv-recent-content').forEach(btn => {
-            btn.addEventListener('click', () => {
-                modal.remove();
-                loadFromUrl(btn.dataset.url);
-            });
-        });
-        
-        modal.querySelectorAll('.mv-recent-delete').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                removeRecentFile(btn.dataset.url);
-                modal.remove();
-                showUrlModal(); // re-render
-            });
-        });
+        const submit = () => { const url = input.value.trim(); if (url) { modal.remove(); loadFromUrl(url); } };
+        loadBtn.addEventListener('click', submit);
+        input.addEventListener('keypress', e => { if (e.key === 'Enter') submit(); });
     }
 
     // Local File Processing
@@ -413,9 +469,30 @@ document.addEventListener('DOMContentLoaded', () => {
     if (exportBtn) {
         exportBtn.addEventListener('click', () => {
             if (!markdownContent || markdownContent.innerHTML.trim() === '') return;
+            // Set a meaningful document title so the PDF export has proper metadata
+            const originalTitle = document.title;
+            const docTitle = currentFileName.replace(/\.pdf$/i, '') || 'Markview Export';
+            document.title = docTitle;
             window.print();
+            document.title = originalTitle;
         });
     }
+
+    // ── Share Button ────────────────────────────────────────────────────────
+    const shareBtn = document.getElementById('share-btn');
+    function updateShareButton() {
+        if (!shareBtn) return;
+        const hasUrl = new URLSearchParams(window.location.search).has('url');
+        shareBtn.classList.toggle('hidden', !hasUrl);
+    }
+    if (shareBtn) {
+        shareBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(window.location.href)
+                .then(() => showToast('Link Copied', 'Shareable link is in your clipboard.', 'success', 3000))
+                .catch(() => showToast('Copy Failed', 'Could not copy link. Copy the URL from your address bar.', 'warning'));
+        });
+    }
+    updateShareButton();
 
     // Markdown Rendering Pipeline
     async function renderMarkdown(markdown) {
@@ -434,6 +511,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // ==highlight== => <mark>highlight</mark>
         processedMarkdown = processedMarkdown.replace(/==([^=\n]+)==/g, '<mark>$1</mark>');
+
+        // [[WikiLinks]] => [WikiLinks](WikiLinks)  (Obsidian/Foam compatibility)
+        processedMarkdown = processedMarkdown.replace(/\[\[([^\]]+)\]\]/g, '[$1]($1)');
+
+        // Subscript: H~2~O => H<sub>2</sub>O
+        processedMarkdown = processedMarkdown.replace(/~([^~\n]+?)~/g, '<sub>$1</sub>');
+
+        // Superscript: E=mc^2^ => E=mc<sup>2</sup>
+        processedMarkdown = processedMarkdown.replace(/\^([^\^\n]+?)\^/g, '<sup>$1</sup>');
+
+        // Definition lists: Term\n: Definition
+        processedMarkdown = processedMarkdown.replace(
+            /^([^\n:][^\n]*)\n(?::\s+(.+)\n?)+/gm,
+            (match, term) => {
+                const defs = [...match.matchAll(/^:\s+(.+)/gm)].map(m => `<dd>${m[1]}</dd>`).join('');
+                return `<dl><dt>${term.trim()}</dt>${defs}</dl>\n`;
+            }
+        );
 
         // ── Math Extraction ──────────────────────────────────────────────────────
         // We CANNOT use \[...\] or \(...\) as pre-processing output because
@@ -472,13 +567,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // GitHub-style Admonitions: > [!NOTE], [!TIP], [!WARNING], [!IMPORTANT], [!CAUTION]
+        // Captures ALL content inside the blockquote, not just the first <p>
         rawHtml = rawHtml.replace(
-            /<blockquote>\s*<p>\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]([\s\S]*?)<\/p>\s*<\/blockquote>/gi,
-            (_, type, body) => {
+            /<blockquote>\s*<p>\[!(NOTE|TIP|WARNING|IMPORTANT|CAUTION)\]([\s\S]*?)<\/p>([\s\S]*?)<\/blockquote>/gi,
+            (_, type, firstBody, rest) => {
                 const t = type.toLowerCase();
-                const icons = { note: '📝', tip: '💡', warning: '⚠️', important: '❗', caution: '🔥' };
-                const icon = icons[t] || '📝';
-                return `<div class="admonition admonition-${t}"><div class="admonition-title">${icon} ${type.charAt(0)+type.slice(1).toLowerCase()}</div><div class="admonition-body">${body.trim()}</div></div>`;
+                const icons = { note: '\u{1F4DD}', tip: '\u{1F4A1}', warning: '\u26A0\uFE0F', important: '\u2757', caution: '\u{1F525}' };
+                const icon = icons[t] || '\u{1F4DD}';
+                const label = type.charAt(0) + type.slice(1).toLowerCase();
+                const body = (firstBody + rest).trim();
+                return `<div class="admonition admonition-${t}"><div class="admonition-title">${icon} ${label}</div><div class="admonition-body">${body}</div></div>`;
             }
         );
 
@@ -506,16 +604,22 @@ document.addEventListener('DOMContentLoaded', () => {
             rawHtml += fnHtml;
         }
         
-        // DOMPurify Sanitization - allow MathML, SVG, details, mark, sub, sup, kbd
+        // DOMPurify Sanitization
+        // Allows MathML, full Mermaid SVG output, details/summary, mark, sub, sup, kbd
         const sanitizeConfig = {
             ADD_TAGS: [
                 'math', 'mi', 'mn', 'mo', 'ms', 'mspace', 'mtext', 'merror', 'mfrac',
                 'mpadded', 'mphantom', 'mroot', 'mrow', 'msqrt', 'mstyle', 'mmultiscripts',
                 'mover', 'mprescripts', 'msub', 'msubsup', 'msup', 'munder', 'munderover',
                 'none', 'semantics', 'annotation', 'annotation-xml',
+                // Core SVG
                 'svg', 'path', 'g', 'circle', 'line', 'text', 'polygon', 'rect', 'defs',
                 'marker', 'use', 'clipPath', 'linearGradient', 'stop', 'tspan',
-                'details', 'summary', 'mark', 'kbd', 'sub', 'sup'
+                // Mermaid v10 extended SVG
+                'foreignObject', 'textPath', 'switch', 'image', 'polyline', 'ellipse',
+                'feGaussianBlur', 'feDropShadow', 'filter', 'feMerge', 'feMergeNode',
+                // HTML extensions
+                'details', 'summary', 'mark', 'kbd', 'sub', 'sup', 'dl', 'dt', 'dd'
             ],
             ADD_ATTR: [
                 'display', 'xmlns', 'mathvariant', 'mathcolor', 'mathbackground', 'mathsize',
@@ -523,7 +627,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 'transform', 'class', 'id', 'x', 'y', 'width', 'height', 'r', 'cx', 'cy',
                 'open', 'checked', 'disabled', 'type', 'marker-end', 'marker-start',
                 'refX', 'refY', 'orient', 'markerWidth', 'markerHeight', 'markerUnits',
-                'x1', 'x2', 'y1', 'y2', 'points', 'rx', 'ry', 'gradientUnits', 'offset'
+                'x1', 'x2', 'y1', 'y2', 'points', 'rx', 'ry', 'gradientUnits', 'offset',
+                'stdDeviation', 'flood-color', 'flood-opacity', 'result', 'in', 'in2'
             ],
             FORCE_BODY: true,
         };
@@ -536,10 +641,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // The 404 network request still fires (unavoidable), but the broken-image
         // icon is replaced with a clean inline notice.
         markdownContent.querySelectorAll('img').forEach(img => {
+            img.loading = 'lazy'; // #16: defer off-screen images
             img.onerror = function() {
                 const notice = document.createElement('span');
                 notice.className = 'img-broken';
-                notice.textContent = `⚠ Image not found: ${this.alt || this.src}`;
+                notice.textContent = `\u26A0 Image not found: ${this.alt || this.src}`;
                 this.replaceWith(notice);
             };
         });
@@ -562,6 +668,7 @@ document.addEventListener('DOMContentLoaded', () => {
         buildTOC();
         
         // 1. Fallback Highlighting: PrismJS (Instant)
+        showLoadingState('Applying syntax highlighting\u2026');
         if (window.Prism) {
             window.Prism.highlightAllUnder(markdownContent);
         }
@@ -571,11 +678,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof feather !== 'undefined') feather.replace();
 
         // 3. Wait for heavy dependencies to finish loading before rendering Math/Mermaid/Shiki
+        showLoadingState('Loading math & diagram engines\u2026');
         await preloadHeavyDependencies();
 
         // 4. Render Math via KaTeX
         if (renderMathInElement) {
-            // renderMathInElement looks for $$...$$ and $...$ inside our restored spans
             renderMathInElement(markdownContent, {
                 delimiters: [
                     { left: '$$', right: '$$', display: true  },
@@ -588,7 +695,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        // 5. Render Mermaid
+        // 5. Render Mermaid — with per-node error boundary
         currentRawMermaidSources = [];
         const mermaidNodes = markdownContent.querySelectorAll('.mermaid:not([data-processed="true"])');
         if (mermaidNodes.length > 0 && mermaid) {
@@ -596,26 +703,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isDarkForMermaid = document.documentElement.getAttribute('data-theme') === 'dark';
                 mermaid.initialize({ startOnLoad: false, theme: isDarkForMermaid ? 'dark' : 'default' });
                 mermaidNodes.forEach((node, i) => {
-                    currentRawMermaidSources[i] = node.textContent.trim(); // save for theme toggle
+                    currentRawMermaidSources[i] = node.textContent.trim();
                     node.id = 'mermaid-' + Date.now() + '-' + i;
                 });
-                mermaid.run({ nodes: Array.from(mermaidNodes) }).catch(e => console.error('Mermaid error', e));
+                mermaid.run({ nodes: Array.from(mermaidNodes) }).catch(e => {
+                    console.error('Mermaid render error', e);
+                    mermaidNodes.forEach(node => {
+                        if (!node.querySelector('svg')) {
+                            node.innerHTML = `<pre style="color:#f85149;font-size:0.85rem">\u26A0 Diagram error: ${e.message}</pre>`;
+                        }
+                    });
+                });
             } catch(e) {
                 console.error('Mermaid sync error', e);
             }
         }
 
         // 6. High-fidelity Highlighting: Shiki
+        showLoadingState('Rendering code blocks\u2026');
         applyShikiHighlighting();
 
         // 7. Word count + reading time
         updateDocumentStats(markdown);
+        updateShareButton();
     }
 
     function updateDocumentStats(markdown) {
         const cleanText = markdown
-            .replace(/^---[\s\S]*?---[ \t]*\n/, '')
-            .replace(/```[\s\S]*?```/g, '')
+            .replace(/^---[\s\S]*?---[ \t]*\n/, '')    // strip frontmatter
+            .replace(/```[\s\S]*?```/g, '')              // strip fenced code
+            .replace(/`[^`]+`/g, '')                    // strip inline code
             .replace(/[#*`_~\[\]()>|]/g, ' ')
             .trim();
         const words = cleanText.split(/\s+/).filter(Boolean).length;
@@ -701,35 +818,96 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Theme toggle observer — debounced, preserves TOC scroll, re-renders Mermaid
+    // Theme toggle observer — batched DOM updates to prevent per-element repaints
     let themeDebounce = null;
     const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-            if (mutation.attributeName !== 'data-theme') return;
-            clearTimeout(themeDebounce);
-            themeDebounce = setTimeout(() => {
-                requestAnimationFrame(() => {
-                    if (highlighter && markdownContent.innerHTML.trim() !== '') {
-                        const savedTocScroll = sidebar ? sidebar.scrollTop : 0;
-                        applyShikiHighlighting();
-                        if (sidebar) sidebar.scrollTop = savedTocScroll;
-                    }
-                    if (mermaid && currentRawMermaidSources.length > 0) {
-                        const isDarkM = document.documentElement.getAttribute('data-theme') === 'dark';
-                        mermaid.initialize({ startOnLoad: false, theme: isDarkM ? 'dark' : 'default' });
-                        markdownContent.querySelectorAll('.mermaid').forEach((node, i) => {
-                            if (currentRawMermaidSources[i]) {
-                                node.removeAttribute('data-processed');
-                                node.innerHTML = currentRawMermaidSources[i];
-                                node.id = 'mermaid-theme-' + Date.now() + '-' + i;
-                            }
-                        });
-                        const freshNodes = Array.from(markdownContent.querySelectorAll('.mermaid'));
-                        if (freshNodes.length) mermaid.run({ nodes: freshNodes }).catch(() => {});
-                    }
-                });
-            }, 50);
-        });
+        if (!mutations.some(m => m.attributeName === 'data-theme')) return;
+        clearTimeout(themeDebounce);
+        themeDebounce = setTimeout(() => {
+            requestAnimationFrame(() => {
+                // ── Shiki re-highlight ──────────────────────────────────────
+                // Collect ALL replacements first, then apply in one synchronous
+                // pass so the browser composites a single repaint, not N reflows.
+                if (highlighter && markdownContent.innerHTML.trim() !== '') {
+                    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                    const theme  = isDark ? 'github-dark' : 'github-light';
+
+                    // Save scroll positions before any DOM surgery
+                    const pageScrollY    = window.scrollY;
+                    const tocScrollTop   = sidebar ? sidebar.scrollTop : 0;
+
+                    const aliases = {
+                        'js': 'javascript', 'ts': 'typescript', 'py': 'python', 'rb': 'ruby',
+                        'sh': 'bash', 'yml': 'yaml', 'md': 'markdown', 'c++': 'cpp',
+                        'golang': 'go', 'rs': 'rust'
+                    };
+                    const loaded = highlighter.getLoadedLanguages();
+
+                    // Phase 1: build all new nodes in memory (no DOM writes yet)
+                    const replacements = []; // [ { oldPre, newPre } ]
+                    markdownContent.querySelectorAll('pre').forEach((pre) => {
+                        if (pre.classList.contains('shiki') &&
+                            pre.getAttribute('data-theme-applied') === theme) return;
+
+                        let rawCode = '', lang = 'text';
+                        if (pre.classList.contains('shiki')) {
+                            rawCode = pre.getAttribute('data-raw-code') || '';
+                            lang    = pre.getAttribute('data-lang') || 'text';
+                        } else {
+                            const code = pre.querySelector('code');
+                            if (!code) return;
+                            const btn = pre.querySelector('.copy-code-btn');
+                            if (btn) btn.remove();
+                            rawCode = code.textContent.trimEnd();
+                            if (btn) pre.appendChild(btn);
+                            const m = code.className.match(/language-([^\s]+)/);
+                            if (m) lang = m[1];
+                        }
+                        if (!rawCode) return;
+                        const canon = aliases[lang] || lang;
+                        if (!loaded.includes(canon)) return;
+
+                        try {
+                            const html = highlighter.codeToHtml(rawCode, { lang: canon, theme });
+                            const temp = document.createElement('div');
+                            temp.innerHTML = html;
+                            const newPre = temp.firstElementChild;
+                            newPre.setAttribute('data-raw-code', rawCode);
+                            newPre.setAttribute('data-lang', lang);
+                            newPre.setAttribute('data-theme-applied', theme);
+                            newPre.style.position = 'relative';
+                            const btn = pre.querySelector('.copy-code-btn');
+                            if (btn) newPre.appendChild(btn);
+                            replacements.push({ oldPre: pre, newPre });
+                        } catch (err) {
+                            console.error('Shiki theme-switch error:', err);
+                        }
+                    });
+
+                    // Phase 2: apply all DOM swaps in one synchronous batch
+                    replacements.forEach(({ oldPre, newPre }) => oldPre.replaceWith(newPre));
+
+                    // Phase 3: restore scroll positions (DOM surgery can shift them)
+                    window.scrollTo({ top: pageScrollY, behavior: 'instant' });
+                    if (sidebar) sidebar.scrollTop = tocScrollTop;
+                }
+
+                // ── Mermaid re-render ───────────────────────────────────────
+                if (mermaid && currentRawMermaidSources.length > 0) {
+                    const isDarkM = document.documentElement.getAttribute('data-theme') === 'dark';
+                    mermaid.initialize({ startOnLoad: false, theme: isDarkM ? 'dark' : 'default' });
+                    markdownContent.querySelectorAll('.mermaid').forEach((node, i) => {
+                        if (currentRawMermaidSources[i]) {
+                            node.removeAttribute('data-processed');
+                            node.innerHTML = currentRawMermaidSources[i];
+                            node.id = 'mermaid-theme-' + Date.now() + '-' + i;
+                        }
+                    });
+                    const freshNodes = Array.from(markdownContent.querySelectorAll('.mermaid'));
+                    if (freshNodes.length) mermaid.run({ nodes: freshNodes }).catch(() => {});
+                }
+            });
+        }, 0); // Fire immediately — DOM changes happen while viewport is opacity:0
     });
     observer.observe(document.documentElement, { attributes: true });
 
@@ -766,13 +944,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault(); window.print();
             }
         }
-        if (e.key === 'Escape' && !viewerContainer.classList.contains('hidden')) {
-            viewerContainer.classList.add('hidden');
-            uploadContainer.classList.remove('hidden');
-            if (headerUploadContainer) headerUploadContainer.classList.add('hidden');
-            const cu = new URL(window.location.href);
-            cu.searchParams.delete('url');
-            history.replaceState(null, '', cu.toString());
+        if (e.key === 'Escape') {
+            // Close any open modal first — don't lose the document
+            const openModal = document.querySelector('.mv-modal');
+            if (openModal) { openModal.remove(); return; }
+            if (!viewerContainer.classList.contains('hidden')) {
+                viewerContainer.classList.add('hidden');
+                uploadContainer.classList.remove('hidden');
+                if (headerUploadContainer) headerUploadContainer.classList.add('hidden');
+                const cu = new URL(window.location.href);
+                cu.searchParams.delete('url');
+                history.replaceState(null, '', cu.toString());
+            }
         }
     });
 
@@ -837,24 +1020,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 if (navigator.clipboard && window.isSecureContext) {
-                    navigator.clipboard.writeText(codeText).then(showSuccess).catch(err => {
-                        console.error('Failed to copy text: ', err);
+                    navigator.clipboard.writeText(codeText).then(showSuccess).catch(() => {
+                        console.warn('Clipboard write failed.');
                     });
                 } else {
-                    const textArea = document.createElement("textarea");
-                    textArea.value = codeText;
-                    textArea.style.position = "fixed";
-                    textArea.style.opacity = "0";
-                    document.body.appendChild(textArea);
-                    textArea.focus();
-                    textArea.select();
-                    try {
-                        document.execCommand('copy');
-                        showSuccess();
-                    } catch (err) {
-                        console.error('Fallback copy failed', err);
-                    }
-                    document.body.removeChild(textArea);
+                    console.warn('Clipboard API unavailable in non-secure context.');
                 }
             });
 
@@ -874,12 +1044,28 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Slug map tracks duplicates: 'intro' seen twice → 'intro' + 'intro-1'
+        const slugMap = new Map();
+        function slugify(text, index) {
+            const base = text
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')   // strip diacritics
+                .toLowerCase()
+                .replace(/[^\w\s-]/g, '')            // strip non-word chars
+                .replace(/[\s_]+/g, '-')             // spaces to hyphens
+                .replace(/(^-|-$)/g, '')             // trim hyphens
+                || `heading-${index}`;
+            const count = slugMap.get(base) || 0;
+            slugMap.set(base, count + 1);
+            return count === 0 ? base : `${base}-${count}`;
+        }
+
         const ul = document.createElement('ul');
         tocNav.appendChild(ul);
 
         headings.forEach((heading, index) => {
             if (!heading.id) {
-                heading.id = heading.textContent.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `heading-${index}`;
+                heading.id = slugify(heading.textContent.trim(), index);
             }
             
             headingObserver.observe(heading);
