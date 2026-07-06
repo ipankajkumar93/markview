@@ -2008,9 +2008,12 @@ main {
     }
 }
 
-/* Theme transition — opt-in, applied only during toggle */
-.theme-transition {
-    transition: background-color var(--transition-slow), color var(--transition-slow);
+/* Theme transition — instant opacity crossfade via GPU compositor.
+   This masks all DOM changes (Shiki re-render, CSS var updates, Mermaid
+   re-draws) behind a single layer operation — no per-element repaints. */
+.theme-transition,
+.theme-transition * {
+    transition: none !important;
 }
 
 /* --------------------------------------------------------------------------
