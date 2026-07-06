@@ -43,10 +43,19 @@ function preloadHeavyDependencies() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Only preload heavy deps eagerly when we know rendering will happen
-    // (i.e. a ?url= param is present). Otherwise load on first file open.
+    // Preload heavy deps eagerly if rendering will happen immediately.
+    // Otherwise, preload them in the background after the page has fully loaded
+    // so they are ready by the time the user uploads a file, without blocking initial render.
     if (new URLSearchParams(window.location.search).has('url')) {
         preloadHeavyDependencies();
+    } else {
+        window.addEventListener('load', () => {
+            if ('requestIdleCallback' in window) {
+                requestIdleCallback(() => preloadHeavyDependencies(), { timeout: 2000 });
+            } else {
+                setTimeout(preloadHeavyDependencies, 500);
+            }
+        });
     }
     // UI Elements
     const uploadInput = document.getElementById('markdown-upload');
@@ -411,6 +420,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // Local File Processing
     function processFile(file) {
         if (!file) return;
+
+        const validExtensions = ['.md', '.markdown', '.mdx', '.txt', '.mdown', '.mkd', '.mkdn' ];
+        const fileName = file.name || '';
+        const isValidExtension = validExtensions.some(ext => fileName.toLowerCase().endsWith(ext));
+        const isValidMime = file.type === 'text/markdown' || file.type === 'text/plain';
+
+        if (!isValidExtension && !isValidMime) {
+            showToast('Invalid File', 'The uploaded file is not a valid markdown file.', 'error');
+            return;
+        }
+
         showLoadingState('Reading ' + file.name + '…');
         const reader = new FileReader();
         reader.onload = async (event) => {
