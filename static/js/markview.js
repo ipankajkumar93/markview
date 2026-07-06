@@ -884,8 +884,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
 
-                    // Phase 2: apply all DOM swaps in one synchronous batch
-                    replacements.forEach(({ oldPre, newPre }) => oldPre.replaceWith(newPre));
+                // Phase 2: apply all DOM swaps in one synchronous batch
+                // Mark pre blocks invisible for ONE frame so Shiki's swap
+                // is never seen mid-flight (preserves layout, unlike display:none)
+                const allPres = Array.from(markdownContent.querySelectorAll('pre'));
+                allPres.forEach(p => p.classList.add('shiki-swapping'));
+                replacements.forEach(({ oldPre, newPre }) => oldPre.replaceWith(newPre));
+                // Restore visibility in the same rAF — browser paints them once, correctly
+                requestAnimationFrame(() => {
+                    markdownContent.querySelectorAll('pre').forEach(p => p.classList.remove('shiki-swapping'));
+                });
 
                     // Phase 3: restore scroll positions (DOM surgery can shift them)
                     window.scrollTo({ top: pageScrollY, behavior: 'instant' });

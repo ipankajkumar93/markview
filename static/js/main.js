@@ -16,40 +16,26 @@ if (themeToggle) {
     if (activeTheme === 'dark') {
         themeToggle.innerHTML = '<i data-feather="sun"></i>';
     }
+    // Sync aria-pressed to the actual theme on load
     themeToggle.setAttribute('aria-pressed', activeTheme === 'dark' ? 'true' : 'false');
 
     themeToggle.addEventListener('click', function () {
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
         const theme  = isDark ? 'light' : 'dark';
 
-        // Phase 1: fade out the entire viewport (GPU compositor layer — zero reflow)
-        document.body.style.transition = 'opacity 80ms ease';
-        document.body.style.opacity    = '0';
+        // Flip theme — theme-transition class enables a fast 150ms bg/color fade
+        document.body.classList.add('theme-transition');
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.style.colorScheme = theme;
+        localStorage.setItem('theme', theme);
 
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                // Phase 2: flip everything while viewport is invisible
-                document.body.classList.add('theme-transition'); // suppresses sub-transitions
-                document.documentElement.setAttribute('data-theme', theme);
-                document.documentElement.style.colorScheme = theme;
-                localStorage.setItem('theme', theme);
-                themeToggle.innerHTML = isDark
-                    ? '<i data-feather="moon"></i>'
-                    : '<i data-feather="sun"></i>';
-                themeToggle.setAttribute('aria-pressed', isDark ? 'false' : 'true');
-                replaceFeather();
+        themeToggle.innerHTML = isDark
+            ? '<i data-feather="moon"></i>'
+            : '<i data-feather="sun"></i>';
+        themeToggle.setAttribute('aria-pressed', isDark ? 'false' : 'true');
+        replaceFeather();
 
-                // Phase 3: fade back in — user sees the finished, fully-updated page
-                document.body.style.transition = 'opacity 120ms ease';
-                document.body.style.opacity    = '1';
-
-                setTimeout(() => {
-                    document.body.classList.remove('theme-transition');
-                    document.body.style.transition = '';
-                    document.body.style.opacity    = '';
-                }, 200);
-            });
-        });
+        setTimeout(() => document.body.classList.remove('theme-transition'), 200);
     });
 }
 
