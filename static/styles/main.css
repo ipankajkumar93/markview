@@ -2008,17 +2008,12 @@ main {
     }
 }
 
-/* Theme transition — fast targeted transition on background/color only.
-   Code blocks are handled separately by the Shiki batching in markview.js. */
+/* Theme transition — instant opacity crossfade via GPU compositor.
+   This masks all DOM changes (Shiki re-render, CSS var updates, Mermaid
+   re-draws) behind a single layer operation — no per-element repaints. */
 .theme-transition,
 .theme-transition * {
-    transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease !important;
-}
-
-/* During Shiki's one-frame DOM swap, hide pre elements so there's no
-   flash of old-theme colours while new nodes are being inserted. */
-.shiki-swapping {
-    visibility: hidden;
+    transition: none !important;
 }
 
 /* --------------------------------------------------------------------------
